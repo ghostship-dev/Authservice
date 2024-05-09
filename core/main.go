@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ghostship-dev/authservice/core/handlers"
 	"github.com/ghostship-dev/authservice/core/router"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func RunService() {

@@ -9,7 +9,7 @@ import (
 type LoginSuccessResponse struct {
 	AccessToken  string    `json:"access_token"`
 	TokenType    string    `json:"token_type"`
-	ExpiresIn    time.Time `json:"expires_in"`
+	ExpiresAt    time.Time `json:"expires_at"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
 }
 
@@ -17,7 +17,7 @@ func SendLoginSuccessResponse(accessToken, refreshToken datatypes.Token, w http.
 	return NewJSONResponse(w, http.StatusOK, LoginSuccessResponse{
 		AccessToken:  accessToken.Value,
 		TokenType:    "Bearer",
-		ExpiresIn:    accessToken.ExpiresIn,
+		ExpiresAt:    accessToken.ExpiresAt,
 		RefreshToken: refreshToken.Value,
 	})
 }

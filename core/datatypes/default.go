@@ -11,7 +11,7 @@ type Token struct {
 	Scope     []string    `json:"scope" edgedb:"scope"`
 	Account   edgedb.UUID `json:"account" edgedb:"account"`
 	Revoked   bool        `json:"revoked" edgedb:"revoked"`
-	ExpiresIn time.Time   `json:"expires_in" edgedb:"expires_in"`
+	ExpiresAt time.Time   `json:"expires_at" edgedb:"expires_at"`
 }
 
 type Password struct {

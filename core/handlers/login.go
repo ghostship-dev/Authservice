@@ -10,6 +10,7 @@ import (
 	"github.com/ghostship-dev/authservice/core/responses"
 	"github.com/ghostship-dev/authservice/core/utility"
 	"golang.org/x/crypto/bcrypt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -20,6 +21,10 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) error {
 	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
 		return responses.NewErrorResponse(w, http.StatusBadRequest, "request was malformed or invalid")
 	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
 
 	if err := reqData.Validate(); err != nil {
 		return responses.NewErrorResponse(w, http.StatusBadRequest, "request was invalid")
@@ -55,17 +60,22 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	accessToken, err := utility.NewAccessToken(password.Account.Id, make([]string, 0))
+	accessTokenExpiresAt := time.Now().Add(time.Hour * 1)
+	refreshTokenExpiresAt := time.Now().Add(time.Hour * 24 * 7)
+
+	grantedScope := []string{"account_*"}
+
+	accessToken, err := utility.NewAccessToken(password.Account.Id, accessTokenExpiresAt, grantedScope)
 	if err != nil {
 		return responses.NewErrorResponse(w, http.StatusInternalServerError, "internal server error")
 	}
 
-	refreshToken, err := utility.NewRefreshToken(password.Account.Id, make([]string, 0))
+	refreshToken, err := utility.NewRefreshToken(password.Account.Id, refreshTokenExpiresAt, grantedScope)
 	if err != nil {
 		return responses.NewErrorResponse(w, http.StatusInternalServerError, "internal server error")
 	}
 
-	if err = queries.AddNewTokenPair(password.Account.Id, accessToken.Value, refreshToken.Value, time.Now().Add(time.Hour*2), time.Now().Add(time.Hour*24*30), accessToken.Scope); err != nil {
+	if err = queries.AddNewTokenPair(password.Account.Id, accessToken.Value, refreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
 		return responses.NewErrorResponse(w, http.StatusInternalServerError, "internal server error")
 	}
 

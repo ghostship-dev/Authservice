@@ -7,6 +7,7 @@ import (
 	"github.com/ghostship-dev/authservice/core/datatypes"
 	"github.com/ghostship-dev/authservice/core/queries"
 	"github.com/ghostship-dev/authservice/core/responses"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -17,6 +18,10 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) error {
 	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
 		return responses.NewErrorResponse(w, http.StatusBadRequest, "request was malformed or invalid")
 	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
 
 	if err := reqData.Validate(); err != nil {
 		return responses.NewErrorResponse(w, http.StatusBadRequest, "request was malformed or invalid")

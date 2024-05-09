@@ -53,11 +53,11 @@ func ResetFailedPasswordLoginAttempts(email string) error {
 }
 
 func AddNewToken(accountId edgedb.UUID, value, variant string, expiresAt time.Time, scope []string) error {
-	query := "INSERT Token { account := <Account>$0, variant := <str>$1, scope := <array<str>>$2, value := <str>$3, revoked := <bool>$4, expires_in := <datetime>$5 }"
+	query := "INSERT Token { account := <Account>$0, variant := <str>$1, scope := <array<str>>$2, value := <str>$3, revoked := <bool>$4, expires_at := <datetime>$5 }"
 	return database.Client.Execute(database.Context, query, accountId, variant, scope, value, false, expiresAt)
 }
 
 func AddNewTokenPair(accountId edgedb.UUID, accessTokenValue, refreshTokenValue string, accessTokenExpiresAt, refreshTokenExpiresAt time.Time, scope []string) error {
-	query := "INSERT Token { account := <Account>$0, variant := <str>$1, scope := <array<str>>$2, value := <str>$3, revoked := <bool>$4, expires_in := <datetime>$5 }; INSERT Token { account := <Account>$6, variant := <str>$7, scope := <array<str>>$8, value := <str>$9, revoked := <bool>$10, expires_in := <datetime>$11 }"
+	query := "INSERT Token { account := <Account>$0, variant := <str>$1, scope := <array<str>>$2, value := <str>$3, revoked := <bool>$4, expires_at := <datetime>$5 }; INSERT Token { account := <Account>$6, variant := <str>$7, scope := <array<str>>$8, value := <str>$9, revoked := <bool>$10, expires_at := <datetime>$11 }"
 	return database.Client.Execute(database.Context, query, accountId, "access_token", scope, accessTokenValue, false, accessTokenExpiresAt, accountId, "refresh_token", scope, refreshTokenValue, false, refreshTokenExpiresAt)
 }
