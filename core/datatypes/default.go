@@ -1,9 +1,35 @@
 package datatypes
 
 import (
-	"github.com/edgedb/edgedb-go"
 	"time"
+
+	"github.com/edgedb/edgedb-go"
 )
+
+type RequestErrorInterface interface {
+	Error() string
+	StatusCode() int
+}
+
+type RequestError struct {
+	statusCode int
+	message    string
+}
+
+func (e *RequestError) Error() string {
+	return e.message
+}
+
+func (e *RequestError) StatusCode() int {
+	return e.statusCode
+}
+
+func NewRequestError(statusCode int, message string) error {
+	return &RequestError{
+		statusCode: statusCode,
+		message:    message,
+	}
+}
 
 type Token struct {
 	Variant   string      `json:"variant" edgedb:"variant"`

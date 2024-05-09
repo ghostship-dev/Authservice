@@ -1,7 +1,5 @@
 package datatypes
 
-import "errors"
-
 type LoginRequestData struct {
 	Email       string `json:"email"`
 	Password    string `json:"password"`
@@ -10,23 +8,24 @@ type LoginRequestData struct {
 	Scope       string `json:"scope"`
 }
 
-func (r *LoginRequestData) Validate() error {
+func (r *LoginRequestData) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
 	if r.Email == "" {
-		return errors.New("email is required")
+		errors["email"] = "email is required"
 	}
 	if r.Password == "" {
-		return errors.New("password is required")
+		errors["password"] = "password is required"
 	}
 	if r.ClientId == "" {
-		return errors.New("client_id is required")
+		errors["client_id"] = "client_id is required"
 	}
 	if r.RedirectUri == "" {
-		return errors.New("redirect_uri is required")
+		errors["redirect_uri"] = "redirect_uri is required"
 	}
 	if r.Scope == "" {
-		return errors.New("scope is required")
+		errors["scope"] = "scope is required"
 	}
-	return nil
+	return errors
 }
 
 type RegisterRequestData struct {
@@ -37,18 +36,31 @@ type RegisterRequestData struct {
 	RedirectUri string `json:"redirect_uri"`
 }
 
-func (r *RegisterRequestData) Validate() error {
+func (r *RegisterRequestData) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
 	if r.Email == "" {
-		return errors.New("email is required")
+		errors["email"] = "email is required"
 	}
 	if r.Username == "" {
-		return errors.New("username is required")
+		errors["username"] = "username is required"
 	}
 	if r.Password == "" {
-		return errors.New("password is required")
+		errors["password"] = "password is required"
 	}
 	if r.ClientId == "" {
-		return errors.New("client_id is required")
+		errors["client_id"] = "client_id is required"
 	}
-	return nil
+	return errors
+}
+
+type IntrospectRequestData struct {
+	Token string `json:"token"`
+}
+
+func (r *IntrospectRequestData) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
+	if r.Token == "" {
+		errors["token"] = "token is required"
+	}
+	return errors
 }

@@ -16,15 +16,15 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) error {
 	var reqData datatypes.RegisterRequestData
 
 	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
-		return responses.NewErrorResponse(w, http.StatusBadRequest, "request was malformed or invalid")
+		return responses.BadRequestResponse()
 	}
 
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(r.Body)
 
-	if err := reqData.Validate(); err != nil {
-		return responses.NewErrorResponse(w, http.StatusBadRequest, "request was malformed or invalid")
+	if validationErrors := reqData.Validate(); len(validationErrors) > 0 {
+		return responses.ValidationErrorResponse(validationErrors)
 	}
 
 	account, err := queries.CreateAccount(reqData.Email, reqData.Username, reqData.Password)
@@ -32,16 +32,16 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) error {
 		var edbErr edgedb.Error
 		if errors.As(err, &edbErr) && edbErr.Category(edgedb.ConstraintViolationError) {
 			if strings.Contains(edbErr.Error(), "violates exclusivity constraint") {
-				return responses.NewErrorResponse(w, http.StatusBadRequest, "email already taken")
+				return responses.EmailInUseErrorResponse()
 			}
 			if strings.Contains(edbErr.Error(), "invalid email") {
-				return responses.NewErrorResponse(w, http.StatusBadRequest, "email invalid")
+				return responses.InvalidEmailErrorResponse()
 			}
 		}
-		return responses.NewErrorResponse(w, http.StatusInternalServerError, "internal server error")
+		return responses.InternalServerErrorResponse()
 	}
 
 	_ = account
 
-	return responses.NewTextResponse(w, http.StatusOK, "ok for now")
+	return responses.SendRegisterSuccessResponse(w)
 }

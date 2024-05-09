@@ -1,9 +1,11 @@
 package responses
 
 import (
-	"github.com/ghostship-dev/authservice/core/datatypes"
+	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/ghostship-dev/authservice/core/datatypes"
 )
 
 type LoginSuccessResponse struct {
@@ -14,10 +16,46 @@ type LoginSuccessResponse struct {
 }
 
 func SendLoginSuccessResponse(accessToken, refreshToken datatypes.Token, w http.ResponseWriter) error {
-	return NewJSONResponse(w, http.StatusOK, LoginSuccessResponse{
+	err := NewJSONResponse(w, http.StatusOK, LoginSuccessResponse{
 		AccessToken:  accessToken.Value,
 		TokenType:    "Bearer",
 		ExpiresAt:    accessToken.ExpiresAt,
 		RefreshToken: refreshToken.Value,
 	})
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return nil
+}
+
+type LoginErrorResponse struct {
+	Error       bool   `json:"error"`
+	Message     string `json:"message"`
+	Description string `json:"description"`
+}
+
+func AccountNotFoundResponse() error {
+	response := LoginErrorResponse{
+		Error:       true,
+		Message:     "account_not_found",
+		Description: "Account not found",
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return datatypes.NewRequestError(http.StatusOK, string(jsonResponse))
+}
+
+func ToManyFailedAttemptsResponse() error {
+	response := LoginErrorResponse{
+		Error:       true,
+		Message:     "to_many_failed_attempts",
+		Description: "Account has been suspended due to too many failed login attempts",
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return datatypes.NewRequestError(http.StatusOK, string(jsonResponse))
 }

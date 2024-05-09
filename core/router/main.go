@@ -1,6 +1,8 @@
 package router
 
 import (
+	"errors"
+	"github.com/ghostship-dev/authservice/core/datatypes"
 	"net/http"
 	"strings"
 )
@@ -36,38 +38,43 @@ func (r *Router) Use(mw func(http.Handler) http.Handler) {
 
 func (r *Router) Get(pattern string, handler HandlerFunc) {
 	r.mux.HandleFunc("GET "+pattern, func(w http.ResponseWriter, req *http.Request) {
-		err := handler(w, req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		handleError(w, handler(w, req))
 	})
 }
 
 func (r *Router) Post(pattern string, handler HandlerFunc) {
 	r.mux.HandleFunc("POST "+pattern, func(w http.ResponseWriter, req *http.Request) {
-		err := handler(w, req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		handleError(w, handler(w, req))
 	})
 }
 
 func (r *Router) Put(pattern string, handler HandlerFunc) {
 	r.mux.HandleFunc("PUT "+pattern, func(w http.ResponseWriter, req *http.Request) {
-		err := handler(w, req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		handleError(w, handler(w, req))
 	})
 }
 
 func (r *Router) Delete(pattern string, handler HandlerFunc) {
 	r.mux.HandleFunc("DELETE "+pattern, func(w http.ResponseWriter, req *http.Request) {
-		err := handler(w, req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		handleError(w, handler(w, req))
 	})
+}
+
+func handleError(w http.ResponseWriter, err error) {
+	if err != nil {
+		var requestError datatypes.RequestErrorInterface
+		if errors.As(err, &requestError) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(requestError.StatusCode())
+			_, err = w.Write([]byte(requestError.Error()))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (r *Router) Group(prefix string) *Router {
