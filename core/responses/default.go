@@ -7,6 +7,11 @@ import (
 	"github.com/ghostship-dev/authservice/core/datatypes"
 )
 
+type GenericResponse struct {
+	Error   bool   `json:"error"`
+	Message string `json:"message"`
+}
+
 func NewJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -34,9 +39,38 @@ func BadRequestResponse() error {
 	return datatypes.NewRequestError(http.StatusBadRequest, "bad request (request was malformed)")
 }
 
+type ValidationErrorResponseType struct {
+	Error  bool              `json:"error"`
+	Fields map[string]string `json:"fields"`
+}
+
 func ValidationErrorResponse(errors map[string]string) error {
-	jsonErrors, _ := json.Marshal(errors)
-	return datatypes.NewRequestError(http.StatusBadRequest, string(jsonErrors))
+	response := ValidationErrorResponseType{
+		Error:  true,
+		Fields: errors,
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return datatypes.NewRequestError(http.StatusBadRequest, string(jsonResponse))
+}
+
+type UnauthorizedErrorResponseType struct {
+	Error   bool   `json:"error"`
+	Message string `json:"message"`
+}
+
+func UnauthorizedErrorResponse(message string) error {
+	response := UnauthorizedErrorResponseType{
+		Error:   true,
+		Message: message,
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return datatypes.NewRequestError(http.StatusUnauthorized, string(jsonResponse))
 }
 
 func InternalServerErrorResponse() error {

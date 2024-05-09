@@ -66,12 +66,12 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) error {
 
 	grantedScope := []string{"account_*"}
 
-	accessToken, err := utility.NewAccessToken(password.Account.Id, accessTokenExpiresAt, grantedScope)
+	accessToken, err := utility.NewAccessToken(password.Account, accessTokenExpiresAt, grantedScope)
 	if err != nil {
 		return responses.InternalServerErrorResponse()
 	}
 
-	refreshToken, err := utility.NewRefreshToken(password.Account.Id, refreshTokenExpiresAt, grantedScope)
+	refreshToken, err := utility.NewRefreshToken(password.Account, refreshTokenExpiresAt, grantedScope)
 	if err != nil {
 		return responses.InternalServerErrorResponse()
 	}
