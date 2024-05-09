@@ -13,6 +13,8 @@ func RunService() {
 	apiV1Router.Post("/login", handlers.LoginHandler)
 	apiV1Router.Post("/register", handlers.RegisterHandler)
 
+	apiV1Router.Post("/otp", handlers.AccountOTP)
+
 	fmt.Println("Starting service...")
 
 	err := apiV1Router.ListenAndServe(":8080")
