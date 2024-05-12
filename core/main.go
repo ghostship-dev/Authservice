@@ -10,10 +10,15 @@ import (
 func RunService() {
 	apiV1Router := router.New().Group("/api/v1")
 
+	// Account management
 	apiV1Router.Post("/login", handlers.LoginHandler)
 	apiV1Router.Post("/register", handlers.RegisterHandler)
 
+	// Time-Based One-Time Password management
 	apiV1Router.Post("/otp", handlers.AccountOTP)
+
+	// OAuth2 Client-Application management
+	apiV1Router.Post("/oauth/application/new", handlers.NewOAuthApplication)
 
 	fmt.Println("Starting service...")
 
