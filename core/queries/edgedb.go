@@ -6,6 +6,7 @@ import (
 	"github.com/edgedb/edgedb-go"
 	"github.com/ghostship-dev/authservice/core/database"
 	"github.com/ghostship-dev/authservice/core/datatypes"
+	"github.com/ghostship-dev/authservice/core/responses"
 	"golang.org/x/crypto/bcrypt"
 	"time"
 )
@@ -125,4 +126,13 @@ func CreateNewOAuthClientApplication(oauthClient datatypes.OAuthClient) error {
 		oauthClient.ClientRegistrationDate,
 		oauthClient.ClientStatus,
 	)
+}
+
+func UpdateOAuth2ClientApplicationKeyValue(updateRequestData datatypes.UpdateOAuth2ClientKeyValueRequest) error {
+	keyType, err := updateRequestData.GetKeyType()
+	if err != nil {
+		return responses.BadRequestResponse()
+	}
+	query := "UPDATE OAuthApplication filter .client_id = <str>$0 set { " + updateRequestData.Key + " := " + keyType + "'" + updateRequestData.Value + "' }"
+	return database.Client.Execute(database.Context, query, updateRequestData.ClientID)
 }

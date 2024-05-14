@@ -76,3 +76,14 @@ func UnauthorizedErrorResponse(message string) error {
 func InternalServerErrorResponse() error {
 	return datatypes.NewRequestError(http.StatusInternalServerError, "internal server error")
 }
+
+func SendNewOKResponse(w http.ResponseWriter) error {
+	err := NewJSONResponse(w, http.StatusOK, GenericResponse{
+		Error:   false,
+		Message: "action successful",
+	})
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return nil
+}

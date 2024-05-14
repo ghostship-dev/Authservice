@@ -19,6 +19,7 @@ func RunService() {
 
 	// OAuth2 Client-Application management
 	apiV1Router.Post("/oauth/application/new", handlers.NewOAuthApplication)
+	apiV1Router.Put("/oauth/application/update/key_value", handlers.UpdateOAuthApplicationKeyValue)
 
 	fmt.Println("Starting service...")
 

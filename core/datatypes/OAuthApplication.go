@@ -1,6 +1,7 @@
 package datatypes
 
 import (
+	stdErrors "errors"
 	"github.com/edgedb/edgedb-go"
 	"github.com/ghostship-dev/authservice/core/scopes"
 	"regexp"
@@ -102,4 +103,130 @@ func (r *NewOAuthClientRequest) Validate() map[string]string {
 		errors["client_owner"] = "client_owner is required"
 	}
 	return errors
+}
+
+type UpdateOAuth2ClientKeyValueRequest struct {
+	ClientID string `json:"client_id"`
+	Key      string `json:"key"`
+	Value    string `json:"value"`
+}
+
+func (r *UpdateOAuth2ClientKeyValueRequest) Validate() map[string]string {
+	errors := make(map[string]string)
+	if len(strings.TrimSpace(r.ClientID)) < 1 {
+		errors["client_id"] = "client_id is required"
+	}
+	if len(strings.TrimSpace(r.Key)) < 1 {
+		errors["key"] = "key is required"
+	}
+	if len(strings.TrimSpace(r.Key)) > 1 && r.Key != "client_name" &&
+		r.Key != "client_type" &&
+		r.Key != "redirect_uris" &&
+		r.Key != "grant_types" &&
+		r.Key != "scope" &&
+		r.Key != "client_description" &&
+		r.Key != "client_homepage_url" &&
+		r.Key != "client_logo_url" &&
+		r.Key != "client_tos_url" &&
+		r.Key != "client_privacy_url" {
+		errors["key"] = "key (" + r.Key + ") can not be modified"
+	}
+	if len(strings.TrimSpace(r.Value)) < 1 {
+		errors["value"] = "value is required"
+	}
+	// Validity checks
+	if r.Key == "client_name" && len(strings.TrimSpace(r.Value)) < 4 {
+		errors["client_name"] = "client_name is must be at least 4 characters long"
+	}
+	if r.Key == "redirect_uris" && len(r.Value) <= 0 {
+		errors["redirect_uris"] = "redirect_uris is required"
+	}
+	if r.Key == "redirect_uris" {
+		regex, err := regexp.Compile(`^(https?)://[^\s/$.?#].\S*$`)
+		if err != nil {
+			errors["redirect_uris"] = "internal server error"
+		} else {
+			strArray := strings.Split(strings.TrimSpace(r.Value), ",")
+			for i := range strArray {
+				if !regex.MatchString(strArray[i]) {
+					errors["redirect_uris_"+strconv.Itoa(i)] = "'" + strArray[i] + "' does not match the redirect url requirements."
+				}
+			}
+		}
+	}
+	if r.Key == "client_logo_url" {
+		regex, err := regexp.Compile(`^(https?)://[^\s/$.?#].\S*$`)
+		if err != nil {
+			errors["client_logo_url"] = "internal server error"
+		} else {
+			strArray := strings.Split(strings.TrimSpace(r.Value), ",")
+			for i := range strArray {
+				if !regex.MatchString(strArray[i]) {
+					errors["client_logo_url_"+strconv.Itoa(i)] = "'" + strArray[i] + "' does not match the client logo url requirements."
+				}
+			}
+		}
+	}
+	if r.Key == "client_privacy_url" {
+		regex, err := regexp.Compile(`^(https?)://[^\s/$.?#].\S*$`)
+		if err != nil {
+			errors["client_privacy_url"] = "internal server error"
+		} else {
+			strArray := strings.Split(strings.TrimSpace(r.Value), ",")
+			for i := range strArray {
+				if !regex.MatchString(strArray[i]) {
+					errors["client_privacy_url_"+strconv.Itoa(i)] = "'" + strArray[i] + "' does not match the client privacy url requirements."
+				}
+			}
+		}
+	}
+	if r.Key == "client_tos_url" {
+		regex, err := regexp.Compile(`^(https?)://[^\s/$.?#].\S*$`)
+		if err != nil {
+			errors["redirect_uris"] = "internal server error"
+		} else {
+			strArray := strings.Split(strings.TrimSpace(r.Value), ",")
+			for i := range strArray {
+				if !regex.MatchString(strArray[i]) {
+					errors["client_tos_url_"+strconv.Itoa(i)] = "'" + strArray[i] + "' does not match the client tos url requirements."
+				}
+			}
+		}
+	}
+	if r.Key == "grant_types" && len(r.Value) < 1 {
+		errors["grant_types"] = "grant_types is required"
+	}
+	if r.Key == "grant_types" {
+		for i := range r.Value {
+			strArray := strings.Split(strings.TrimSpace(r.Value), ",")
+			grantTypeValue := strings.TrimSpace(strArray[i])
+			if grantTypeValue != ImplicitGrant && grantTypeValue != PasswordGrant && grantTypeValue != ClientCredentialsGrant && grantTypeValue != AuthorizationCodeGrant {
+				errors["grant_types_"+strconv.Itoa(i)] = "invalid grant type: " + grantTypeValue
+			}
+		}
+	}
+	if r.Key == "scope" && len(r.Value) < 1 {
+		errors["scope"] = "scope is required"
+	}
+	if r.Key == "scope" {
+		strArray := strings.Split(strings.TrimSpace(r.Value), ",")
+		if !scopes.AllScopesAllowed(strArray) {
+			for i, scope := range strArray {
+				if !scopes.IsScopeAllowed(scope) {
+					errors["scope_"+strconv.Itoa(i)] = "scope '" + scope + "' is not allowed"
+				}
+			}
+		}
+	}
+	return errors
+}
+
+func (r *UpdateOAuth2ClientKeyValueRequest) GetKeyType() (string, error) {
+	if r.Key == "client_name" || r.Key == "client_type" || r.Key == "client_description" || r.Key == "client_homepage_url" || r.Key == "client_logo_url" || r.Key == "client_tos_url" || r.Key == "client_privacy_url" {
+		return "<str>", nil
+	}
+	if r.Key == "redirect_uris" || r.Key == "grant_types" || r.Key == "scope" {
+		return "<array<str>>", nil
+	}
+	return "", stdErrors.New("failed to parse key: " + r.Key)
 }
