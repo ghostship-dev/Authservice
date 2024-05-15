@@ -3,11 +3,13 @@ package queries
 import (
 	"context"
 	"errors"
+	"time"
+
 	"github.com/edgedb/edgedb-go"
 	"github.com/ghostship-dev/authservice/core/database"
 	"github.com/ghostship-dev/authservice/core/datatypes"
+	"github.com/ghostship-dev/authservice/core/responses"
 	"golang.org/x/crypto/bcrypt"
-	"time"
 )
 
 func GetPasswordByEmail(email string) (datatypes.Password, error) {
@@ -85,4 +87,58 @@ func SetOTPState(accountId edgedb.UUID, otpState string) error {
 	}
 	query := "UPDATE Account filter .id = <uuid>$0 set { otp_state := <str>$1 }"
 	return database.Client.Execute(database.Context, query, accountId, otpState)
+}
+
+func CreateNewOAuthClientApplication(oauthClient datatypes.OAuthClient) error {
+	query := `
+		INSERT OAuthApplication {
+			client_id := <str>$0,
+			client_secret := <str>$1,
+			client_name := <str>$2,
+			client_type := <str>$3,
+			redirect_uris := <array<str>>$4,
+			grant_types := <array<str>>$5,
+			scope := <array<str>>$6,
+			client_owner := <Account>$7,
+			client_description := <str>$8,
+			client_homepage_url := <str>$9,
+			client_logo_url := <str>$10,
+			client_tos_url := <str>$11,
+			client_privacy_url := <str>$12,
+			client_registration_date := <datetime>$13,
+			client_status := <str>$14,
+		}
+	`
+
+	return database.Client.Execute(database.Context, query,
+		oauthClient.ClientID,
+		oauthClient.ClientSecret,
+		oauthClient.ClientName,
+		oauthClient.ClientType,
+		oauthClient.RedirectURIs,
+		oauthClient.GrantTypes,
+		oauthClient.Scope,
+		oauthClient.ClientOwner.Id,
+		oauthClient.ClientDescription,
+		oauthClient.ClientHomepageUrl,
+		oauthClient.ClientLogoUrl,
+		oauthClient.ClientTosUrl,
+		oauthClient.ClientPrivacyUrl,
+		oauthClient.ClientRegistrationDate,
+		oauthClient.ClientStatus,
+	)
+}
+
+func UpdateOAuth2ClientApplicationKeyValue(updateRequestData datatypes.UpdateOAuth2ClientKeyValueRequest) error {
+	keyType, err := updateRequestData.GetKeyType()
+	if err != nil {
+		return responses.BadRequestResponse()
+	}
+	query := "UPDATE OAuthApplication filter .client_id = <str>$0 set { " + updateRequestData.Key + " := " + keyType + "'" + updateRequestData.Value + "' }"
+	return database.Client.Execute(database.Context, query, updateRequestData.ClientID)
+}
+
+func DeleteOAuth2ClientApplication(clientId string) error {
+	query := "DELETE OAuthApplication filter .client_id = <str>$0"
+	return database.Client.Execute(database.Context, query, clientId)
 }

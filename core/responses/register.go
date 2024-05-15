@@ -47,3 +47,29 @@ func InvalidEmailErrorResponse() error {
 	}
 	return datatypes.NewRequestError(http.StatusOK, string(jsonResponse))
 }
+
+func OAuth2ApplicationNameInUseErrorResponse() error {
+	response := LoginErrorResponse{
+		Error:       true,
+		Message:     "oauth2_application_name_in_use",
+		Description: "OAuth2 application name is already in use",
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return datatypes.NewRequestError(http.StatusOK, string(jsonResponse))
+}
+
+func OAuth2ApplicationTypeParameterNameMismatchErrorResponse() error {
+	response := LoginErrorResponse{
+		Error:       true,
+		Message:     "oauth2_application_type_parameter_name_mismatch",
+		Description: "OAuth2 application type parameter name mismatch",
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return datatypes.NewRequestError(http.StatusOK, string(jsonResponse))
+}

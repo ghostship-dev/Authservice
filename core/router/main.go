@@ -2,9 +2,10 @@ package router
 
 import (
 	"errors"
-	"github.com/ghostship-dev/authservice/core/datatypes"
 	"net/http"
 	"strings"
+
+	"github.com/ghostship-dev/authservice/core/datatypes"
 )
 
 type HandlerFunc func(http.ResponseWriter, *http.Request) error
@@ -50,6 +51,12 @@ func (r *Router) Post(pattern string, handler HandlerFunc) {
 
 func (r *Router) Put(pattern string, handler HandlerFunc) {
 	r.mux.HandleFunc("PUT "+pattern, func(w http.ResponseWriter, req *http.Request) {
+		handleError(w, handler(w, req))
+	})
+}
+
+func (r *Router) Patch(pattern string, handler HandlerFunc) {
+	r.mux.HandleFunc("PATCH "+pattern, func(w http.ResponseWriter, req *http.Request) {
 		handleError(w, handler(w, req))
 	})
 }

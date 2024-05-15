@@ -12,6 +12,11 @@ type GenericResponse struct {
 	Message string `json:"message"`
 }
 
+type GenericDataResponse struct {
+	Error bool        `json:"error"`
+	Data  interface{} `json:"data"`
+}
+
 func NewJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -75,4 +80,15 @@ func UnauthorizedErrorResponse(message string) error {
 
 func InternalServerErrorResponse() error {
 	return datatypes.NewRequestError(http.StatusInternalServerError, "internal server error")
+}
+
+func SendNewOKResponse(w http.ResponseWriter) error {
+	err := NewJSONResponse(w, http.StatusOK, GenericResponse{
+		Error:   false,
+		Message: "action successful",
+	})
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return nil
 }

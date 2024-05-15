@@ -64,7 +64,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) error {
 	accessTokenExpiresAt := time.Now().Add(time.Hour * 1)
 	refreshTokenExpiresAt := time.Now().Add(time.Hour * 24 * 7)
 
-	grantedScope := []string{"account_*"}
+	grantedScope := []string{"*"}
 
 	accessToken, err := utility.NewAccessToken(password.Account, accessTokenExpiresAt, grantedScope)
 	if err != nil {
