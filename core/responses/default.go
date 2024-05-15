@@ -12,6 +12,11 @@ type GenericResponse struct {
 	Message string `json:"message"`
 }
 
+type GenericDataResponse struct {
+	Error bool        `json:"error"`
+	Data  interface{} `json:"data"`
+}
+
 func NewJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)

@@ -94,7 +94,16 @@ func NewOAuthApplication(w http.ResponseWriter, r *http.Request) error {
 		return responses.InternalServerErrorResponse()
 	}
 
-	return nil
+	response := responses.GenericDataResponse{
+		Error: false,
+		Data: struct {
+			ClientID string `json:"client_id"`
+		}{
+			ClientID: oauthApplication.ClientID,
+		},
+	}
+
+	return responses.NewJSONResponse(w, http.StatusOK, response)
 }
 
 func UpdateOAuthApplicationKeyValue(w http.ResponseWriter, r *http.Request) error {
