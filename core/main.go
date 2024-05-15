@@ -19,8 +19,8 @@ func RunService() {
 	apiV1Router.Post("/otp", handlers.AccountOTP)
 
 	// OAuth2 Client-Application management
-	apiV1Router.Post("/oauth/application/new", handlers.NewOAuthApplication)
-	apiV1Router.Put("/oauth/application/update/key_value", handlers.UpdateOAuthApplicationKeyValue)
+	apiV1Router.Post("/oauth/application", handlers.NewOAuthApplication)
+	apiV1Router.Patch("/oauth/application", handlers.UpdateOAuthApplicationKeyValue)
 	apiV1Router.Delete("/oauth/application", handlers.DeleteOAuthClientApplication)
 
 	fmt.Println("Starting service...")

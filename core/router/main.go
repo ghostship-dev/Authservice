@@ -55,6 +55,12 @@ func (r *Router) Put(pattern string, handler HandlerFunc) {
 	})
 }
 
+func (r *Router) Patch(pattern string, handler HandlerFunc) {
+	r.mux.HandleFunc("PATCH "+pattern, func(w http.ResponseWriter, req *http.Request) {
+		handleError(w, handler(w, req))
+	})
+}
+
 func (r *Router) Delete(pattern string, handler HandlerFunc) {
 	r.mux.HandleFunc("DELETE "+pattern, func(w http.ResponseWriter, req *http.Request) {
 		handleError(w, handler(w, req))
