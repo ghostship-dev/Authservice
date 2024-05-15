@@ -3,15 +3,16 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
-	"github.com/edgedb/edgedb-go"
-	"github.com/ghostship-dev/authservice/core/queries"
-	"github.com/ghostship-dev/authservice/core/utility"
-	gonanoid "github.com/matoous/go-nanoid/v2"
 	"io"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/edgedb/edgedb-go"
+	"github.com/ghostship-dev/authservice/core/queries"
+	"github.com/ghostship-dev/authservice/core/utility"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 
 	"github.com/ghostship-dev/authservice/core/datatypes"
 	"github.com/ghostship-dev/authservice/core/responses"
