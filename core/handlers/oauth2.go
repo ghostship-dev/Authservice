@@ -146,3 +146,43 @@ func UpdateOAuthApplicationKeyValue(w http.ResponseWriter, r *http.Request) erro
 
 	return responses.SendNewOKResponse(w)
 }
+
+func DeleteOAuthClientApplication(w http.ResponseWriter, r *http.Request) error {
+	var reqData datatypes.DeleteOAuth2ClientRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
+
+	if validationErrors := reqData.Validate(); len(validationErrors) > 0 {
+		return responses.ValidationErrorResponse(validationErrors)
+	}
+
+	bearerToken, err := utility.GetBearerTokenFromHeader(&r.Header)
+	if err != nil {
+		return responses.UnauthorizedErrorResponse("missing bearer token")
+	}
+
+	dbToken, err := queries.GetToken(bearerToken)
+	if err != nil {
+		return responses.UnauthorizedErrorResponse("invalid bearer token")
+	}
+
+	if dbToken.Revoked {
+		return responses.UnauthorizedErrorResponse("token is revoked")
+	}
+
+	// TODO: Replace with a permission decision point in the future
+	if !slices.Contains(dbToken.Scope, "oauth2_delete") && !slices.Contains(dbToken.Scope, "*") {
+		return responses.UnauthorizedErrorResponse("missing required permission")
+	}
+
+	if err = queries.DeleteOAuth2ClientApplication(reqData.ClientID); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	return responses.SendNewOKResponse(w)
+}

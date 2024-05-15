@@ -3,12 +3,13 @@ package queries
 import (
 	"context"
 	"errors"
+	"time"
+
 	"github.com/edgedb/edgedb-go"
 	"github.com/ghostship-dev/authservice/core/database"
 	"github.com/ghostship-dev/authservice/core/datatypes"
 	"github.com/ghostship-dev/authservice/core/responses"
 	"golang.org/x/crypto/bcrypt"
-	"time"
 )
 
 func GetPasswordByEmail(email string) (datatypes.Password, error) {
@@ -135,4 +136,9 @@ func UpdateOAuth2ClientApplicationKeyValue(updateRequestData datatypes.UpdateOAu
 	}
 	query := "UPDATE OAuthApplication filter .client_id = <str>$0 set { " + updateRequestData.Key + " := " + keyType + "'" + updateRequestData.Value + "' }"
 	return database.Client.Execute(database.Context, query, updateRequestData.ClientID)
+}
+
+func DeleteOAuth2ClientApplication(clientId string) error {
+	query := "DELETE OAuthApplication filter .client_id = <str>$0"
+	return database.Client.Execute(database.Context, query, clientId)
 }

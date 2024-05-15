@@ -2,12 +2,13 @@ package datatypes
 
 import (
 	stdErrors "errors"
-	"github.com/edgedb/edgedb-go"
-	"github.com/ghostship-dev/authservice/core/scopes"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/edgedb/edgedb-go"
+	"github.com/ghostship-dev/authservice/core/scopes"
 )
 
 const (
@@ -229,4 +230,16 @@ func (r *UpdateOAuth2ClientKeyValueRequest) GetKeyType() (string, error) {
 		return "<array<str>>", nil
 	}
 	return "", stdErrors.New("failed to parse key: " + r.Key)
+}
+
+type DeleteOAuth2ClientRequest struct {
+	ClientID string `json:"client_id"`
+}
+
+func (r *DeleteOAuth2ClientRequest) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
+	if r.ClientID == "" {
+		errors["client_id"] = "client_id is required"
+	}
+	return errors
 }

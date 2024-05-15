@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+
 	"github.com/ghostship-dev/authservice/core/handlers"
 	"github.com/ghostship-dev/authservice/core/router"
 	_ "github.com/joho/godotenv/autoload"
@@ -20,6 +21,7 @@ func RunService() {
 	// OAuth2 Client-Application management
 	apiV1Router.Post("/oauth/application/new", handlers.NewOAuthApplication)
 	apiV1Router.Put("/oauth/application/update/key_value", handlers.UpdateOAuthApplicationKeyValue)
+	apiV1Router.Delete("/oauth/application", handlers.DeleteOAuthClientApplication)
 
 	fmt.Println("Starting service...")
 

@@ -2,9 +2,10 @@ package router
 
 import (
 	"errors"
-	"github.com/ghostship-dev/authservice/core/datatypes"
 	"net/http"
 	"strings"
+
+	"github.com/ghostship-dev/authservice/core/datatypes"
 )
 
 type HandlerFunc func(http.ResponseWriter, *http.Request) error
