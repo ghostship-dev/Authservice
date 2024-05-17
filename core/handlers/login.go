@@ -13,6 +13,7 @@ import (
 	"github.com/ghostship-dev/authservice/core/queries"
 	"github.com/ghostship-dev/authservice/core/responses"
 	"github.com/ghostship-dev/authservice/core/utility"
+	"github.com/xlzd/gotp"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -52,7 +53,21 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) error {
 		return responses.AccountNotFoundResponse()
 	}
 
-	//TODO: Add Two Factor Authentication (Google Authenticator)
+	if password.Account.OtpState == "enabled" {
+		if len(reqData.OTP) < 6 {
+			return responses.TwoFactorAuthenticationRequiredResponse()
+		} else {
+			totpSecret, isSecretSet := password.Account.OtpSecret.Get()
+			if !isSecretSet {
+				return responses.InvalidTotpStateErrorResponse()
+			}
+
+			totp := gotp.NewDefaultTOTP(totpSecret)
+			if !totp.Verify(reqData.OTP, time.Now().Unix()) {
+				return responses.UnauthorizedErrorResponse("invalid otp")
+			}
+		}
+	}
 
 	if password.FailedAttempts > 0 {
 		err = queries.ResetFailedPasswordLoginAttempts(reqData.Email)

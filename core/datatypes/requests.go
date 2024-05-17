@@ -6,6 +6,7 @@ type LoginRequestData struct {
 	ClientId    string `json:"client_id"`
 	RedirectUri string `json:"redirect_uri"`
 	Scope       string `json:"scope"`
+	OTP         string `json:"otp"`
 }
 
 func (r *LoginRequestData) Validate() map[string]string {

@@ -3,13 +3,14 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ghostship-dev/authservice/core/queries"
-	"github.com/ghostship-dev/authservice/core/utility"
-	"github.com/xlzd/gotp"
 	"io"
 	"net/http"
 	"slices"
 	"time"
+
+	"github.com/ghostship-dev/authservice/core/queries"
+	"github.com/ghostship-dev/authservice/core/utility"
+	"github.com/xlzd/gotp"
 
 	"github.com/ghostship-dev/authservice/core/datatypes"
 	"github.com/ghostship-dev/authservice/core/responses"

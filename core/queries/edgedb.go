@@ -14,7 +14,7 @@ import (
 
 func GetPasswordByEmail(email string) (datatypes.Password, error) {
 	var password datatypes.Password
-	query := "SELECT Password{password, failed_attempts, account: { id }} filter .email = <str>$0 LIMIT 1"
+	query := "SELECT Password{password, failed_attempts, account: { id, otp_secret, otp_state }} filter .email = <str>$0 LIMIT 1"
 	err := database.Client.QuerySingle(database.Context, query, &password, email)
 	return password, err
 }
