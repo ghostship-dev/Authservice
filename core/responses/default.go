@@ -92,3 +92,14 @@ func SendNewOKResponse(w http.ResponseWriter) error {
 	}
 	return nil
 }
+
+func SendNewOKResponseMessage(w http.ResponseWriter, message string) error {
+	err := NewJSONResponse(w, http.StatusOK, GenericResponse{
+		Error:   false,
+		Message: message,
+	})
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
+	return nil
+}

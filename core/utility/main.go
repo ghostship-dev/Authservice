@@ -3,12 +3,13 @@ package utility
 import (
 	"errors"
 	"fmt"
-	"github.com/ghostship-dev/authservice/core/datatypes"
-	"github.com/golang-jwt/jwt"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/ghostship-dev/authservice/core/datatypes"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func NewAccessToken(account datatypes.Account, expires time.Time, scope []string) (datatypes.Token, error) {
@@ -45,7 +46,7 @@ func NewRefreshToken(account datatypes.Account, expires time.Time, scope []strin
 func GenerateJWT(expires time.Time, account datatypes.Account, scope []string, tokenVariant string) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
-	claims["exp"] = expires
+	claims["exp"] = expires.Unix()
 	claims["account_id"] = account.Id
 	claims["scope"] = scope
 	claims["variant"] = tokenVariant

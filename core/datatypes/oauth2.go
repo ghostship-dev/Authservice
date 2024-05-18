@@ -243,3 +243,16 @@ func (r *DeleteOAuth2ClientRequest) Validate() map[string]string {
 	}
 	return errors
 }
+
+type IntrospectOAuth2TokenRequest struct {
+	Token                 string `json:"token"`
+	CheckIfTokenIsRevoked bool   `json:"check_if_token_is_revoked"`
+}
+
+func (r *IntrospectOAuth2TokenRequest) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
+	if r.Token == "" {
+		errors["token"] = "token is required"
+	}
+	return errors
+}

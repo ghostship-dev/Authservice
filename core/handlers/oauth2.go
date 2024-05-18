@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/edgedb/edgedb-go"
 	"github.com/ghostship-dev/authservice/core/queries"
 	"github.com/ghostship-dev/authservice/core/utility"
+	"github.com/golang-jwt/jwt/v5"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 
 	"github.com/ghostship-dev/authservice/core/datatypes"
@@ -194,4 +196,43 @@ func DeleteOAuthClientApplication(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	return responses.SendNewOKResponse(w)
+}
+
+func IntrospectOAuthToken(w http.ResponseWriter, r *http.Request) error {
+	var reqData datatypes.IntrospectOAuth2TokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
+
+	if validationErrors := reqData.Validate(); len(validationErrors) > 0 {
+		return responses.ValidationErrorResponse(validationErrors)
+	}
+
+	token, err := jwt.Parse(reqData.Token, func(token *jwt.Token) (interface{}, error) {
+		return []byte(os.Getenv("JWT_SECRET_KEY")), nil
+	})
+
+	if err != nil || !token.Valid {
+		return responses.UnauthorizedErrorResponse("invalid token")
+	}
+
+	if reqData.CheckIfTokenIsRevoked {
+		dbToken, err := queries.GetToken(reqData.Token)
+		tokenVariant := token.Claims.(jwt.MapClaims)["variant"].(string)
+		if err != nil {
+			return responses.UnauthorizedErrorResponse("invalid token")
+		}
+		if dbToken.Variant != tokenVariant {
+			return responses.UnauthorizedErrorResponse("token type mismatch")
+		}
+		if dbToken.Revoked {
+			return responses.UnauthorizedErrorResponse("token is revoked")
+		}
+	}
+
+	return responses.SendNewOKResponseMessage(w, "token is valid")
 }

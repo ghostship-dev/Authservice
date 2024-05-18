@@ -23,6 +23,9 @@ func RunService() {
 	apiV1Router.Patch("/oauth/application", handlers.UpdateOAuthApplicationKeyValue)
 	apiV1Router.Delete("/oauth/application", handlers.DeleteOAuthClientApplication)
 
+	// OAuth2 Implementation
+	apiV1Router.Post("/oauth/token/introspect", handlers.IntrospectOAuthToken)
+
 	fmt.Println("Starting service...")
 
 	err := apiV1Router.ListenAndServe(":8080")
