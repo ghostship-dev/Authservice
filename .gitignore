@@ -8,6 +8,8 @@
 *.so
 *.dylib
 .idea
+schema/dbschema/migrations
+schema/start_edgedb.bat
 
 .env
 
