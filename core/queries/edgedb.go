@@ -45,6 +45,17 @@ func CreateAccount(email, username, password string) (datatypes.Account, error) 
 	return account, err
 }
 
+func GetAccountById(id string) (datatypes.Account, error) {
+	var account datatypes.Account
+	query := "SELECT Account filter .id = <uuid>$0 LIMIT 1"
+	accountId, err := edgedb.ParseUUID(id)
+	if err != nil {
+		return account, err
+	}
+	err = database.Client.QuerySingle(database.Context, query, &account, accountId)
+	return account, err
+}
+
 func IncrementFailedPasswordLoginAttempts(email string) error {
 	query := "UPDATE Password filter .email = <str>$0 set { failed_attempts := .failed_attempts +1, last_failed_attempt := <datetime>$1 }"
 	return database.Client.Execute(database.Context, query, email, time.Now())
@@ -141,4 +152,87 @@ func UpdateOAuth2ClientApplicationKeyValue(updateRequestData datatypes.UpdateOAu
 func DeleteOAuth2ClientApplication(clientId string) error {
 	query := "DELETE OAuthApplication filter .client_id = <str>$0"
 	return database.Client.Execute(database.Context, query, clientId)
+}
+
+func GetOAuth2ClientApplication(clientID string) (datatypes.OAuthClient, error) {
+	var oauthClient datatypes.OAuthClient
+	query := `SELECT OAuthApplication {
+	client_id,
+	client_secret,
+	client_name,
+	client_type,
+	redirect_uris,
+	grant_types,
+	scope,
+	client_owner: {
+		id
+	},
+	client_description,
+	client_homepage_url,
+	client_logo_url,
+	client_tos_url,
+	client_privacy_url,
+	client_registration_date,
+	client_status } filter .client_id = <str>$0 LIMIT 1`
+	return oauthClient, database.Client.QuerySingle(database.Context, query, &oauthClient, clientID)
+}
+
+func CreateNewOAuth2AuthorizationCode(authorizationCode datatypes.OAuthAuthorizationCode) error {
+	query := `
+		INSERT Authcode {
+			code := <str>$0,
+			application := <OAuthApplication>$1,
+			account := <Account>$2,
+			requested_scope := <array<str>>$3,
+			granted_scope := <array<str>>$4,
+			expires_at := <datetime>$5,
+			consented := <bool>$6,
+			redirect_uri := <str>$7,
+		}
+	`
+	return database.Client.Execute(database.Context, query,
+		authorizationCode.Code,
+		authorizationCode.Application.ID,
+		authorizationCode.Account.Id,
+		authorizationCode.RequestedScope,
+		authorizationCode.GrantedScope,
+		authorizationCode.ExpiresAt,
+		authorizationCode.Consented,
+		authorizationCode.RedirectURI,
+	)
+}
+
+func GetOAuth2CleintApplicationAndUserAccount(clientID string, accountID edgedb.UUID) (datatypes.OAuthClient, datatypes.Account, error) {
+	var result struct {
+		OAuthClient datatypes.OAuthClient `edgedb:"oauth_client"`
+		Account     datatypes.Account     `edgedb:"account"`
+	}
+
+	query := `SELECT (
+    	oauth_client := (SELECT OAuthApplication {
+		id,
+		client_id,
+		client_secret,
+		client_name,
+		client_type,
+		redirect_uris,
+		grant_types,
+		scope,
+		client_description,
+		client_homepage_url,
+		client_logo_url,
+		client_tos_url,
+		client_privacy_url,
+		client_registration_date,
+		client_status } filter .client_id = <str>$0 LIMIT 1),
+		account := (SELECT Account filter .id = <uuid>$1 LIMIT 1)
+		)`
+
+	return result.OAuthClient, result.Account, database.Client.QuerySingle(
+		database.Context,
+		query,
+		&result,
+		clientID,
+		accountID,
+	)
 }

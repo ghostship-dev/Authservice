@@ -12,6 +12,7 @@ import (
 
 	"github.com/edgedb/edgedb-go"
 	"github.com/ghostship-dev/authservice/core/queries"
+	"github.com/ghostship-dev/authservice/core/scopes"
 	"github.com/ghostship-dev/authservice/core/utility"
 	"github.com/golang-jwt/jwt/v5"
 	gonanoid "github.com/matoous/go-nanoid/v2"
@@ -235,4 +236,82 @@ func IntrospectOAuthToken(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	return responses.SendNewOKResponseMessage(w, "token is valid")
+}
+
+func AuthorizeOAuthApplication(w http.ResponseWriter, r *http.Request) error {
+	err := r.ParseForm()
+	if err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	reqData := datatypes.AuthorizeOAuth2ClientRequest{
+		ClientID:     r.Form.Get("client_id"),
+		UserID:       r.Form.Get("user_id"),
+		RedirectURI:  r.Form.Get("redirect_uri"),
+		ResponseType: r.Form.Get("response_type"),
+		Scope:        r.Form.Get("scope"),
+		State:        r.Form.Get("state"),
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
+
+	if validationErrors := reqData.Validate(); len(validationErrors) > 0 {
+		return responses.ValidationErrorResponse(validationErrors)
+	}
+
+	userID, err := edgedb.ParseUUID(reqData.UserID)
+	if err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	oauth2Application, account, err := queries.GetOAuth2CleintApplicationAndUserAccount(reqData.ClientID, userID)
+	if err != nil {
+		return responses.OAuth2ApplicationNotFoundResponse()
+	}
+
+	if len(oauth2Application.ClientID) < 1 {
+		return responses.OAuth2ApplicationNotFoundResponse()
+	}
+
+	if len(account.Id.String()) < 1 {
+		return responses.OAuth2UserNotFoundResponse()
+	}
+
+	if !slices.Contains(oauth2Application.RedirectURIs, reqData.RedirectURI) {
+		return responses.OAuth2RedirectURIDoesNotMatch()
+	}
+
+	scopeSlice := strings.Split(strings.ReplaceAll(reqData.Scope, " ", ""), ",")
+
+	if len(scopeSlice) < 1 {
+		return responses.OAuth2ScopeIsRequired()
+	}
+
+	if !scopes.AllScopesAllowed(scopeSlice) {
+		return responses.OAuth2InvalidScope(scopes.GetForbiddenScopes(scopeSlice))
+	}
+
+	stateToken, err := gonanoid.New(50)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	var authCode = datatypes.OAuthAuthorizationCode{
+		Code:           stateToken,
+		Consented:      false,
+		ExpiresAt:      time.Now().Add(10 * time.Minute),
+		GrantedScope:   make([]string, 0),
+		RequestedScope: scopeSlice,
+		Account:        account,
+		Application:    oauth2Application,
+		RedirectURI:    reqData.RedirectURI,
+	}
+
+	if err = queries.CreateNewOAuth2AuthorizationCode(authCode); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	return responses.ReturnRedirectResponseToConsentPage(w, r, authCode)
 }
