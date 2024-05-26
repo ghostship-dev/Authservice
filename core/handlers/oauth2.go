@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -314,4 +315,124 @@ func AuthorizeOAuthApplication(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	return responses.ReturnRedirectResponseToConsentPage(w, r, authCode)
+}
+
+func OAuthTokenEndpoint(w http.ResponseWriter, r *http.Request) error {
+	var reqData datatypes.OAuthTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
+
+	if validationErrors := reqData.Validate(); len(validationErrors) > 0 {
+		return responses.ValidationErrorResponse(validationErrors)
+	}
+
+	clientSecret, err := utility.GetClientSecretFromHeader(&r.Header)
+	if err != nil || len(clientSecret) < 1 {
+		return responses.UnauthorizedErrorResponse("missing client secret")
+	}
+	clientID, err := utility.GetClientIDFromHeader(&r.Header)
+	if err != nil || len(clientID) < 1 {
+		return responses.UnauthorizedErrorResponse("missing client id")
+	}
+
+	if reqData.GrantType == "authorization_code" {
+		return handleAuthorizationCodeGrantType(w, reqData, clientID, clientSecret)
+	}
+
+	if reqData.GrantType == "refresh_token" {
+		return handleRefreshTokenGrantType(w, reqData)
+	}
+
+	return responses.BadRequestResponse()
+}
+
+func handleAuthorizationCodeGrantType(w http.ResponseWriter, reqData datatypes.OAuthTokenRequest, clientID, clientSecret string) error {
+	authCode, err := queries.GetOAuth2AuthorizationCode(reqData.Code)
+	if err != nil {
+		return responses.UnauthorizedErrorResponse("invalid authorization code")
+	}
+
+	if authCode.Application.ClientID != clientID {
+		return responses.UnauthorizedErrorResponse("invalid client id")
+	}
+
+	if authCode.Application.ClientSecret != clientSecret {
+		return responses.UnauthorizedErrorResponse("invalid client secret")
+	}
+
+	if authCode.ExpiresAt.Before(time.Now()) {
+		return responses.UnauthorizedErrorResponse("authorization code expired")
+	}
+
+	if !authCode.Consented {
+		return responses.UnauthorizedErrorResponse("authorization code not consented")
+	}
+
+	accessTokenExpiresAt := time.Now().Add(time.Hour * 1)
+	refreshTokenExpiresAt := time.Now().Add(time.Hour * 24 * 7)
+
+	accessToken, err := utility.NewAccessToken(authCode.Account, accessTokenExpiresAt, authCode.GrantedScope)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	refreshToken, err := utility.NewRefreshToken(authCode.Account, refreshTokenExpiresAt, authCode.GrantedScope)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	if err = queries.AddNewTokenPair(authCode.Account.Id, accessToken.Value, refreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	if err = queries.DeleteOAuth2AuthorizationCode(authCode.Code); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	return responses.SendTokenExchangeSuccessResponse(accessToken, refreshToken, w)
+}
+
+func handleRefreshTokenGrantType(w http.ResponseWriter, reqData datatypes.OAuthTokenRequest) error {
+	refreshToken, err := queries.GetRefreshToken(reqData.RefreshToken)
+	if err != nil {
+		fmt.Println(err)
+		return responses.UnauthorizedErrorResponse("invalid refresh token")
+	}
+
+	if refreshToken.Variant != "refresh_token" {
+		fmt.Println(refreshToken.Variant)
+		return responses.UnauthorizedErrorResponse("invalid refresh token")
+	}
+
+	if refreshToken.ExpiresAt.Before(time.Now()) {
+		return responses.UnauthorizedErrorResponse("refresh token expired")
+	}
+
+	accessTokenExpiresAt := time.Now().Add(time.Hour * 1)
+	refreshTokenExpiresAt := time.Now().Add(time.Hour * 24 * 7)
+
+	accessToken, err := utility.NewAccessToken(refreshToken.Account, accessTokenExpiresAt, refreshToken.Scope)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	newRefreshToken, err := utility.NewRefreshToken(refreshToken.Account, refreshTokenExpiresAt, refreshToken.Scope)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	if err = queries.AddNewTokenPair(refreshToken.Account.Id, accessToken.Value, newRefreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	if err = queries.DeleteRefreshToken(refreshToken.ID); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	return responses.SendTokenExchangeSuccessResponse(accessToken, newRefreshToken, w)
 }

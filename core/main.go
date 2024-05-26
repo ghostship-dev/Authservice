@@ -26,6 +26,7 @@ func RunService() {
 	// OAuth2 Implementation
 	apiV1Router.Post("/oauth/token/introspect", handlers.IntrospectOAuthToken)
 	apiV1Router.Get("/oauth/authorize", handlers.AuthorizeOAuthApplication)
+	apiV1Router.Post("/oauth/token", handlers.OAuthTokenEndpoint)
 
 	fmt.Println("Starting service...")
 

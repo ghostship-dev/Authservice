@@ -236,3 +236,65 @@ func GetOAuth2CleintApplicationAndUserAccount(clientID string, accountID edgedb.
 		accountID,
 	)
 }
+
+func GetOAuth2AuthorizationCode(code string) (datatypes.OAuthAuthorizationCode, error) {
+	var authorizationCode datatypes.OAuthAuthorizationCode
+	query := `SELECT Authcode {
+	code,
+	application: {
+		id,
+		client_id,
+		client_secret,
+		client_name,
+		client_type,
+		redirect_uris,
+		grant_types,
+		scope,
+		client_description,
+		client_homepage_url,
+		client_logo_url,
+		client_tos_url,
+		client_privacy_url,
+		client_registration_date,
+		client_status
+	},
+	account: {
+		id,
+		username,
+		email,
+		otp_secret,
+		otp_state
+	},
+	requested_scope,
+	granted_scope,
+	expires_at,
+	consented,
+	redirect_uri
+	} filter .code = <str>$0 LIMIT 1`
+	return authorizationCode, database.Client.QuerySingle(database.Context, query, &authorizationCode, code)
+}
+
+func DeleteOAuth2AuthorizationCode(code string) error {
+	query := "DELETE Authcode filter .code = <str>$0"
+	return database.Client.Execute(database.Context, query, code)
+}
+
+func GetRefreshToken(value string) (datatypes.Token, error) {
+	var refreshToken datatypes.Token
+	query := `SELECT Token {
+		id,
+		value,
+		scope,
+		expires_at,
+		revoked,
+		variant,
+		account: {
+			id
+		}} filter .value = <str>$0 LIMIT 1`
+	return refreshToken, database.Client.QuerySingle(database.Context, query, &refreshToken, value)
+}
+
+func DeleteRefreshToken(id edgedb.UUID) error {
+	query := "DELETE Token filter .id = <uuid>$0"
+	return database.Client.Execute(database.Context, query, id)
+}

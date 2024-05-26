@@ -1,6 +1,7 @@
 package utility
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -62,4 +63,30 @@ func GetBearerTokenFromHeader(h *http.Header) (string, error) {
 		return "", errors.New("no bearer token found")
 	}
 	return value, nil
+}
+
+func GetClientSecretFromHeader(h *http.Header) (string, error) {
+	value := strings.TrimSpace(strings.Replace(h.Get("Authorization"), "Basic", "", 1))
+	if value == "" {
+		return "", errors.New("no client secret found")
+	}
+	decodedValue, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return "", err
+	}
+	credentials := strings.SplitN(string(decodedValue), ":", 2)
+	return string(credentials[1]), nil
+}
+
+func GetClientIDFromHeader(h *http.Header) (string, error) {
+	value := strings.TrimSpace(strings.Replace(h.Get("Authorization"), "Basic", "", 1))
+	if value == "" {
+		return "", errors.New("no client id found")
+	}
+	decodedValue, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return "", err
+	}
+	credentials := strings.SplitN(string(decodedValue), ":", 2)
+	return string(credentials[0]), nil
 }

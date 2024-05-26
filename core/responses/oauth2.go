@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ghostship-dev/authservice/core/datatypes"
 )
@@ -48,5 +49,27 @@ func OAuth2UserNotFoundResponse() error {
 
 func ReturnRedirectResponseToConsentPage(w http.ResponseWriter, r *http.Request, authCode datatypes.OAuthAuthorizationCode) error {
 	http.Redirect(w, r, os.Getenv("OAuth2_ConsentPage_URI")+"?code="+authCode.Code, http.StatusSeeOther)
+	return nil
+}
+
+type tokenExchangeSuccess struct {
+	AccessToken  string    `json:"access_token"`
+	TokenType    string    `json:"token_type"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	Scope        []string  `json:"scope,omitempty"`
+}
+
+func SendTokenExchangeSuccessResponse(accessToken, refreshToken datatypes.Token, w http.ResponseWriter) error {
+	err := NewJSONResponse(w, http.StatusOK, tokenExchangeSuccess{
+		AccessToken:  accessToken.Value,
+		TokenType:    "Bearer",
+		ExpiresAt:    accessToken.ExpiresAt,
+		RefreshToken: refreshToken.Value,
+		Scope:        accessToken.Scope,
+	})
+	if err != nil {
+		return InternalServerErrorResponse()
+	}
 	return nil
 }

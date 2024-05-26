@@ -304,3 +304,34 @@ type OAuthAuthorizationCode struct {
 	Application    OAuthClient `edgedb:"application"`
 	RedirectURI    string      `edgedb:"redirect_uri"`
 }
+
+type OAuthTokenRequest struct {
+	GrantType    string `json:"grant_type"`
+	Code         string `json:"code"`
+	RedirectURI  string `json:"redirect_uri"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+func (r *OAuthTokenRequest) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
+	if len(r.GrantType) < 1 {
+		errors["grant_type"] = "grant_type is required"
+	}
+	if r.GrantType != "authorization_code" && r.GrantType != "refresh_token" {
+		errors["grant_type"] = "grant_type currently only supports 'authorization_code' and 'refresh_token'"
+	}
+	if r.GrantType == "authorization_code" {
+		if len(r.Code) < 1 {
+			errors["code"] = "code is required"
+		}
+		if len(r.RedirectURI) < 1 {
+			errors["redirect_uri"] = "redirect_uri is required"
+		}
+	}
+	if r.GrantType == "refresh_token" {
+		if len(r.RefreshToken) < 1 {
+			errors["refresh_token"] = "refresh_token is required"
+		}
+	}
+	return errors
+}
