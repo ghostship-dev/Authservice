@@ -3,13 +3,14 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
-	"github.com/edgedb/edgedb-go"
-	"github.com/ghostship-dev/authservice/core/datatypes"
-	"github.com/ghostship-dev/authservice/core/queries"
-	"github.com/ghostship-dev/authservice/core/responses"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/edgedb/edgedb-go"
+	"github.com/ghostship-dev/authservice/core/database"
+	"github.com/ghostship-dev/authservice/core/datatypes"
+	"github.com/ghostship-dev/authservice/core/responses"
 )
 
 func RegisterHandler(w http.ResponseWriter, r *http.Request) error {
@@ -27,7 +28,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) error {
 		return responses.ValidationErrorResponse(validationErrors)
 	}
 
-	account, err := queries.CreateAccount(reqData.Email, reqData.Username, reqData.Password)
+	account, err := database.Connection.Queries.CreateAccount(reqData.Email, reqData.Username, reqData.Password)
 	if err != nil {
 		var edbErr edgedb.Error
 		if errors.As(err, &edbErr) && edbErr.Category(edgedb.ConstraintViolationError) {

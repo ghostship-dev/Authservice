@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/edgedb/edgedb-go"
-	"github.com/ghostship-dev/authservice/core/queries"
+	"github.com/ghostship-dev/authservice/core/database"
 	"github.com/ghostship-dev/authservice/core/scopes"
 	"github.com/ghostship-dev/authservice/core/utility"
 	"github.com/golang-jwt/jwt/v5"
@@ -42,7 +42,7 @@ func NewOAuthApplication(w http.ResponseWriter, r *http.Request) error {
 		return responses.UnauthorizedErrorResponse("missing bearer token")
 	}
 
-	dbToken, err := queries.GetToken(bearerToken)
+	dbToken, err := database.Connection.Queries.GetToken(bearerToken)
 	if err != nil {
 		return responses.UnauthorizedErrorResponse("invalid bearer token")
 	}
@@ -86,7 +86,7 @@ func NewOAuthApplication(w http.ResponseWriter, r *http.Request) error {
 		ClientRateLimits:       []byte(""),
 	}
 
-	if err = queries.CreateNewOAuthClientApplication(oauthApplication); err != nil {
+	if err = database.Connection.Queries.CreateNewOAuthClientApplication(oauthApplication); err != nil {
 		var edbErr edgedb.Error
 		if errors.As(err, &edbErr) && edbErr.Category(edgedb.ConstraintViolationError) {
 			if strings.Contains(edbErr.Error(), "violates exclusivity constraint") {
@@ -129,7 +129,7 @@ func UpdateOAuthApplicationKeyValue(w http.ResponseWriter, r *http.Request) erro
 		return responses.UnauthorizedErrorResponse("missing bearer token")
 	}
 
-	dbToken, err := queries.GetToken(bearerToken)
+	dbToken, err := database.Connection.Queries.GetToken(bearerToken)
 	if err != nil {
 		return responses.UnauthorizedErrorResponse("invalid bearer token")
 	}
@@ -143,7 +143,7 @@ func UpdateOAuthApplicationKeyValue(w http.ResponseWriter, r *http.Request) erro
 		return responses.UnauthorizedErrorResponse("missing required permission")
 	}
 
-	if err = queries.UpdateOAuth2ClientApplicationKeyValue(reqData); err != nil {
+	if err = database.Connection.Queries.UpdateOAuth2ClientApplicationKeyValue(reqData); err != nil {
 		var edbErr edgedb.Error
 		if errors.As(err, &edbErr) && edbErr.Category(edgedb.ConstraintViolationError) {
 			if strings.Contains(edbErr.Error(), "violates exclusivity constraint") {
@@ -179,7 +179,7 @@ func DeleteOAuthClientApplication(w http.ResponseWriter, r *http.Request) error 
 		return responses.UnauthorizedErrorResponse("missing bearer token")
 	}
 
-	dbToken, err := queries.GetToken(bearerToken)
+	dbToken, err := database.Connection.Queries.GetToken(bearerToken)
 	if err != nil {
 		return responses.UnauthorizedErrorResponse("invalid bearer token")
 	}
@@ -193,7 +193,7 @@ func DeleteOAuthClientApplication(w http.ResponseWriter, r *http.Request) error 
 		return responses.UnauthorizedErrorResponse("missing required permission")
 	}
 
-	if err = queries.DeleteOAuth2ClientApplication(reqData.ClientID); err != nil {
+	if err = database.Connection.Queries.DeleteOAuth2ClientApplication(reqData.ClientID); err != nil {
 		return responses.InternalServerErrorResponse()
 	}
 
@@ -223,7 +223,7 @@ func IntrospectOAuthToken(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if reqData.CheckIfTokenIsRevoked {
-		dbToken, err := queries.GetToken(reqData.Token)
+		dbToken, err := database.Connection.Queries.GetToken(reqData.Token)
 		tokenVariant := token.Claims.(jwt.MapClaims)["variant"].(string)
 		if err != nil {
 			return responses.UnauthorizedErrorResponse("invalid token")
@@ -267,7 +267,7 @@ func AuthorizeOAuthApplication(w http.ResponseWriter, r *http.Request) error {
 		return responses.BadRequestResponse()
 	}
 
-	oauth2Application, account, err := queries.GetOAuth2CleintApplicationAndUserAccount(reqData.ClientID, userID)
+	oauth2Application, account, err := database.Connection.Queries.GetOAuth2ClientApplicationAndUserAccount(reqData.ClientID, userID)
 	if err != nil {
 		return responses.OAuth2ApplicationNotFoundResponse()
 	}
@@ -310,7 +310,7 @@ func AuthorizeOAuthApplication(w http.ResponseWriter, r *http.Request) error {
 		RedirectURI:    reqData.RedirectURI,
 	}
 
-	if err = queries.CreateNewOAuth2AuthorizationCode(authCode); err != nil {
+	if err = database.Connection.Queries.CreateNewOAuth2AuthorizationCode(authCode); err != nil {
 		return responses.InternalServerErrorResponse()
 	}
 
@@ -352,7 +352,7 @@ func OAuthTokenEndpoint(w http.ResponseWriter, r *http.Request) error {
 }
 
 func handleAuthorizationCodeGrantType(w http.ResponseWriter, reqData datatypes.OAuthTokenRequest, clientID, clientSecret string) error {
-	authCode, err := queries.GetOAuth2AuthorizationCode(reqData.Code)
+	authCode, err := database.Connection.Queries.GetOAuth2AuthorizationCode(reqData.Code)
 	if err != nil {
 		return responses.UnauthorizedErrorResponse("invalid authorization code")
 	}
@@ -386,11 +386,11 @@ func handleAuthorizationCodeGrantType(w http.ResponseWriter, reqData datatypes.O
 		return responses.InternalServerErrorResponse()
 	}
 
-	if err = queries.AddNewTokenPair(authCode.Account.Id, accessToken.Value, refreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
+	if err = database.Connection.Queries.AddNewTokenPair(authCode.Account.Id, accessToken.Value, refreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
 		return responses.InternalServerErrorResponse()
 	}
 
-	if err = queries.DeleteOAuth2AuthorizationCode(authCode.Code); err != nil {
+	if err = database.Connection.Queries.DeleteOAuth2AuthorizationCode(authCode.Code); err != nil {
 		return responses.InternalServerErrorResponse()
 	}
 
@@ -398,7 +398,7 @@ func handleAuthorizationCodeGrantType(w http.ResponseWriter, reqData datatypes.O
 }
 
 func handleRefreshTokenGrantType(w http.ResponseWriter, reqData datatypes.OAuthTokenRequest) error {
-	refreshToken, err := queries.GetRefreshToken(reqData.RefreshToken)
+	refreshToken, err := database.Connection.Queries.GetRefreshToken(reqData.RefreshToken)
 	if err != nil {
 		fmt.Println(err)
 		return responses.UnauthorizedErrorResponse("invalid refresh token")
@@ -426,11 +426,11 @@ func handleRefreshTokenGrantType(w http.ResponseWriter, reqData datatypes.OAuthT
 		return responses.InternalServerErrorResponse()
 	}
 
-	if err = queries.AddNewTokenPair(refreshToken.Account.Id, accessToken.Value, newRefreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
+	if err = database.Connection.Queries.AddNewTokenPair(refreshToken.Account.Id, accessToken.Value, newRefreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
 		return responses.InternalServerErrorResponse()
 	}
 
-	if err = queries.DeleteRefreshToken(refreshToken.ID); err != nil {
+	if err = database.Connection.Queries.DeleteRefreshToken(refreshToken.ID); err != nil {
 		return responses.InternalServerErrorResponse()
 	}
 
@@ -451,7 +451,7 @@ func RevokeOAuthToken(w http.ResponseWriter, r *http.Request) error {
 		return responses.ValidationErrorResponse(validationErrors)
 	}
 
-	if err := queries.DeleteTokensByValue([]string{reqData.Token}); err != nil {
+	if err := database.Connection.Queries.DeleteTokensByValue([]string{reqData.Token}); err != nil {
 		fmt.Println(err)
 		return responses.InternalServerErrorResponse()
 	}

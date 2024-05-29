@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/edgedb/edgedb-go"
+	"github.com/ghostship-dev/authservice/core/database"
 	"github.com/ghostship-dev/authservice/core/datatypes"
-	"github.com/ghostship-dev/authservice/core/queries"
 	"github.com/ghostship-dev/authservice/core/responses"
 	"github.com/ghostship-dev/authservice/core/utility"
 	"github.com/xlzd/gotp"
@@ -32,7 +32,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) error {
 		return responses.ValidationErrorResponse(validationErrors)
 	}
 
-	password, err := queries.GetPasswordByEmail(reqData.Email)
+	password, err := database.Connection.Queries.GetPasswordByEmail(reqData.Email)
 	if err != nil {
 		var edbErr edgedb.Error
 		if errors.As(err, &edbErr) && edbErr.Category(edgedb.NoDataError) {
@@ -46,7 +46,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if err = bcrypt.CompareHashAndPassword([]byte(password.Password), []byte(reqData.Password)); err != nil {
-		err = queries.IncrementFailedPasswordLoginAttempts(reqData.Email)
+		err = database.Connection.Queries.IncrementFailedPasswordLoginAttempts(reqData.Email)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -70,7 +70,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if password.FailedAttempts > 0 {
-		err = queries.ResetFailedPasswordLoginAttempts(reqData.Email)
+		err = database.Connection.Queries.ResetFailedPasswordLoginAttempts(reqData.Email)
 		if err != nil {
 			return responses.InternalServerErrorResponse()
 		}
@@ -91,7 +91,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) error {
 		return responses.InternalServerErrorResponse()
 	}
 
-	if err = queries.AddNewTokenPair(password.Account.Id, accessToken.Value, refreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
+	if err = database.Connection.Queries.AddNewTokenPair(password.Account.Id, accessToken.Value, refreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
 		return responses.InternalServerErrorResponse()
 	}
 

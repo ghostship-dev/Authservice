@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/ghostship-dev/authservice/core/queries"
+	"github.com/ghostship-dev/authservice/core/database"
 	"github.com/ghostship-dev/authservice/core/utility"
 	"github.com/xlzd/gotp"
 
@@ -36,7 +36,7 @@ func AccountOTP(w http.ResponseWriter, r *http.Request) error {
 		return responses.UnauthorizedErrorResponse("missing bearer token")
 	}
 
-	dbToken, err := queries.GetToken(bearerToken)
+	dbToken, err := database.Connection.Queries.GetToken(bearerToken)
 	if err != nil {
 		fmt.Println(err)
 		return responses.UnauthorizedErrorResponse("invalid bearer token")
@@ -57,7 +57,7 @@ func AccountOTP(w http.ResponseWriter, r *http.Request) error {
 		totp := gotp.NewDefaultTOTP(totpSecret)
 		qrUri := totp.ProvisioningUri(dbToken.Account.Username, "Ghostship")
 
-		if err = queries.SetOTPSecret(dbToken.Account.Id, totpSecret); err != nil {
+		if err = database.Connection.Queries.SetOTPSecret(dbToken.Account.Id, totpSecret); err != nil {
 			fmt.Println(err)
 			return responses.InternalServerErrorResponse()
 		}
@@ -77,7 +77,7 @@ func AccountOTP(w http.ResponseWriter, r *http.Request) error {
 			return responses.UnauthorizedErrorResponse("invalid otp")
 		}
 
-		if err = queries.ResetOTP(dbToken.Account.Id); err != nil {
+		if err = database.Connection.Queries.ResetOTP(dbToken.Account.Id); err != nil {
 			return responses.InternalServerErrorResponse()
 		}
 
@@ -91,7 +91,7 @@ func AccountOTP(w http.ResponseWriter, r *http.Request) error {
 			return responses.UnauthorizedErrorResponse("invalid otp")
 		}
 
-		if err = queries.SetOTPState(dbToken.Account.Id, "enabled"); err != nil {
+		if err = database.Connection.Queries.SetOTPState(dbToken.Account.Id, "enabled"); err != nil {
 			return responses.InternalServerErrorResponse()
 		}
 

@@ -3,25 +3,48 @@ package queries
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/edgedb/edgedb-go"
-	"github.com/ghostship-dev/authservice/core/database"
 	"github.com/ghostship-dev/authservice/core/datatypes"
 	"github.com/ghostship-dev/authservice/core/responses"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func GetPasswordByEmail(email string) (datatypes.Password, error) {
+func connectToEdgeDB() (*edgedb.Client, error) {
+	os.Setenv("EDGEDB_INSTANCE", "Ghostship")
+	ctx := context.Background()
+	client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+	return client, err
+}
+
+type EdgeDBQueries struct {
+	client  *edgedb.Client
+	context context.Context
+}
+
+func NewEdgeDBQueryImplementation() *EdgeDBQueries {
+	client, err := connectToEdgeDB()
+	if err != nil {
+		panic(err)
+	}
+	return &EdgeDBQueries{
+		client:  client,
+		context: context.Background(),
+	}
+}
+
+func (edb *EdgeDBQueries) GetPasswordByEmail(email string) (datatypes.Password, error) {
 	var password datatypes.Password
 	query := "SELECT Password{password, failed_attempts, account: { id, otp_secret, otp_state }} filter .email = <str>$0 LIMIT 1"
-	err := database.Client.QuerySingle(database.Context, query, &password, email)
+	err := edb.client.QuerySingle(edb.context, query, &password, email)
 	return password, err
 }
 
-func CreateAccount(email, username, password string) (datatypes.Account, error) {
+func (edb *EdgeDBQueries) CreateAccount(email, username, password string) (datatypes.Account, error) {
 	var account datatypes.Account
-	err := database.Client.Tx(database.Context, func(ctx context.Context, tx *edgedb.Tx) error {
+	err := edb.client.Tx(edb.context, func(ctx context.Context, tx *edgedb.Tx) error {
 		accountCreationQuery := "INSERT Account { username := <str>$0, email := <str>$1 }"
 		passwordCreationQuery := "INSERT Password { account := <Account>$0, email := <str>$1, password := <str>$2 }"
 
@@ -45,62 +68,62 @@ func CreateAccount(email, username, password string) (datatypes.Account, error) 
 	return account, err
 }
 
-func GetAccountById(id string) (datatypes.Account, error) {
+func (edb *EdgeDBQueries) GetAccountById(id string) (datatypes.Account, error) {
 	var account datatypes.Account
 	query := "SELECT Account filter .id = <uuid>$0 LIMIT 1"
 	accountId, err := edgedb.ParseUUID(id)
 	if err != nil {
 		return account, err
 	}
-	err = database.Client.QuerySingle(database.Context, query, &account, accountId)
+	err = edb.client.QuerySingle(edb.context, query, &account, accountId)
 	return account, err
 }
 
-func IncrementFailedPasswordLoginAttempts(email string) error {
+func (edb *EdgeDBQueries) IncrementFailedPasswordLoginAttempts(email string) error {
 	query := "UPDATE Password filter .email = <str>$0 set { failed_attempts := .failed_attempts +1, last_failed_attempt := <datetime>$1 }"
-	return database.Client.Execute(database.Context, query, email, time.Now())
+	return edb.client.Execute(edb.context, query, email, time.Now())
 }
 
-func ResetFailedPasswordLoginAttempts(email string) error {
+func (edb *EdgeDBQueries) ResetFailedPasswordLoginAttempts(email string) error {
 	query := "UPDATE Password filter .email = <str>$0 set { failed_attempts := 0, last_failed_attempt := {} }"
-	return database.Client.Execute(database.Context, query, email)
+	return edb.client.Execute(edb.context, query, email)
 }
 
-func AddNewToken(accountId edgedb.UUID, value, variant string, expiresAt time.Time, scope []string) error {
+func (edb *EdgeDBQueries) AddNewToken(accountId edgedb.UUID, value, variant string, expiresAt time.Time, scope []string) error {
 	query := "INSERT Token { account := <Account>$0, variant := <str>$1, scope := <array<str>>$2, value := <str>$3, revoked := <bool>$4, expires_at := <datetime>$5 }"
-	return database.Client.Execute(database.Context, query, accountId, variant, scope, value, false, expiresAt)
+	return edb.client.Execute(edb.context, query, accountId, variant, scope, value, false, expiresAt)
 }
 
-func AddNewTokenPair(accountId edgedb.UUID, accessTokenValue, refreshTokenValue string, accessTokenExpiresAt, refreshTokenExpiresAt time.Time, scope []string) error {
+func (edb *EdgeDBQueries) AddNewTokenPair(accountId edgedb.UUID, accessTokenValue, refreshTokenValue string, accessTokenExpiresAt, refreshTokenExpiresAt time.Time, scope []string) error {
 	query := "INSERT Token { account := <Account>$0, variant := <str>$1, scope := <array<str>>$2, value := <str>$3, revoked := <bool>$4, expires_at := <datetime>$5 }; INSERT Token { account := <Account>$6, variant := <str>$7, scope := <array<str>>$8, value := <str>$9, revoked := <bool>$10, expires_at := <datetime>$11 }"
-	return database.Client.Execute(database.Context, query, accountId, "access_token", scope, accessTokenValue, false, accessTokenExpiresAt, accountId, "refresh_token", scope, refreshTokenValue, false, refreshTokenExpiresAt)
+	return edb.client.Execute(edb.context, query, accountId, "access_token", scope, accessTokenValue, false, accessTokenExpiresAt, accountId, "refresh_token", scope, refreshTokenValue, false, refreshTokenExpiresAt)
 }
 
-func GetToken(tokenValue string) (datatypes.Token, error) {
+func (edb *EdgeDBQueries) GetToken(tokenValue string) (datatypes.Token, error) {
 	var token datatypes.Token
 	query := "SELECT Token { value, scope, revoked, variant, expires_at, account: { id, username, otp_secret, otp_state } } filter .value = <str>$0 LIMIT 1"
-	return token, database.Client.QuerySingle(database.Context, query, &token, tokenValue)
+	return token, edb.client.QuerySingle(edb.context, query, &token, tokenValue)
 }
 
-func ResetOTP(accountId edgedb.UUID) error {
+func (edb *EdgeDBQueries) ResetOTP(accountId edgedb.UUID) error {
 	query := "UPDATE Account filter .id = <uuid>$0 set { otp_secret := <str>{}, otp_state := <str>'disabled' }"
-	return database.Client.Execute(database.Context, query, accountId)
+	return edb.client.Execute(edb.context, query, accountId)
 }
 
-func SetOTPSecret(accountId edgedb.UUID, otpSecret string) error {
+func (edb *EdgeDBQueries) SetOTPSecret(accountId edgedb.UUID, otpSecret string) error {
 	query := "UPDATE Account filter .id = <uuid>$0 set { otp_secret := <str>$1, otp_state := <str>$2 }"
-	return database.Client.Execute(database.Context, query, accountId, otpSecret, "verifying")
+	return edb.client.Execute(edb.context, query, accountId, otpSecret, "verifying")
 }
 
-func SetOTPState(accountId edgedb.UUID, otpState string) error {
+func (edb *EdgeDBQueries) SetOTPState(accountId edgedb.UUID, otpState string) error {
 	if otpState != "disabled" && otpState != "enabled" && otpState != "verifying" {
 		return errors.New("allowed otp state: disabled, enabled or verifying")
 	}
 	query := "UPDATE Account filter .id = <uuid>$0 set { otp_state := <str>$1 }"
-	return database.Client.Execute(database.Context, query, accountId, otpState)
+	return edb.client.Execute(edb.context, query, accountId, otpState)
 }
 
-func CreateNewOAuthClientApplication(oauthClient datatypes.OAuthClient) error {
+func (edb *EdgeDBQueries) CreateNewOAuthClientApplication(oauthClient datatypes.OAuthClient) error {
 	query := `
 		INSERT OAuthApplication {
 			client_id := <str>$0,
@@ -121,7 +144,7 @@ func CreateNewOAuthClientApplication(oauthClient datatypes.OAuthClient) error {
 		}
 	`
 
-	return database.Client.Execute(database.Context, query,
+	return edb.client.Execute(edb.context, query,
 		oauthClient.ClientID,
 		oauthClient.ClientSecret,
 		oauthClient.ClientName,
@@ -140,21 +163,21 @@ func CreateNewOAuthClientApplication(oauthClient datatypes.OAuthClient) error {
 	)
 }
 
-func UpdateOAuth2ClientApplicationKeyValue(updateRequestData datatypes.UpdateOAuth2ClientKeyValueRequest) error {
+func (edb *EdgeDBQueries) UpdateOAuth2ClientApplicationKeyValue(updateRequestData datatypes.UpdateOAuth2ClientKeyValueRequest) error {
 	keyType, err := updateRequestData.GetKeyType()
 	if err != nil {
 		return responses.BadRequestResponse()
 	}
 	query := "UPDATE OAuthApplication filter .client_id = <str>$0 set { " + updateRequestData.Key + " := " + keyType + "'" + updateRequestData.Value + "' }"
-	return database.Client.Execute(database.Context, query, updateRequestData.ClientID)
+	return edb.client.Execute(edb.context, query, updateRequestData.ClientID)
 }
 
-func DeleteOAuth2ClientApplication(clientId string) error {
+func (edb *EdgeDBQueries) DeleteOAuth2ClientApplication(clientId string) error {
 	query := "DELETE OAuthApplication filter .client_id = <str>$0"
-	return database.Client.Execute(database.Context, query, clientId)
+	return edb.client.Execute(edb.context, query, clientId)
 }
 
-func GetOAuth2ClientApplication(clientID string) (datatypes.OAuthClient, error) {
+func (edb *EdgeDBQueries) GetOAuth2ClientApplication(clientID string) (datatypes.OAuthClient, error) {
 	var oauthClient datatypes.OAuthClient
 	query := `SELECT OAuthApplication {
 	client_id,
@@ -174,10 +197,10 @@ func GetOAuth2ClientApplication(clientID string) (datatypes.OAuthClient, error) 
 	client_privacy_url,
 	client_registration_date,
 	client_status } filter .client_id = <str>$0 LIMIT 1`
-	return oauthClient, database.Client.QuerySingle(database.Context, query, &oauthClient, clientID)
+	return oauthClient, edb.client.QuerySingle(edb.context, query, &oauthClient, clientID)
 }
 
-func CreateNewOAuth2AuthorizationCode(authorizationCode datatypes.OAuthAuthorizationCode) error {
+func (edb *EdgeDBQueries) CreateNewOAuth2AuthorizationCode(authorizationCode datatypes.OAuthAuthorizationCode) error {
 	query := `
 		INSERT Authcode {
 			code := <str>$0,
@@ -190,7 +213,7 @@ func CreateNewOAuth2AuthorizationCode(authorizationCode datatypes.OAuthAuthoriza
 			redirect_uri := <str>$7,
 		}
 	`
-	return database.Client.Execute(database.Context, query,
+	return edb.client.Execute(edb.context, query,
 		authorizationCode.Code,
 		authorizationCode.Application.ID,
 		authorizationCode.Account.Id,
@@ -202,7 +225,7 @@ func CreateNewOAuth2AuthorizationCode(authorizationCode datatypes.OAuthAuthoriza
 	)
 }
 
-func GetOAuth2CleintApplicationAndUserAccount(clientID string, accountID edgedb.UUID) (datatypes.OAuthClient, datatypes.Account, error) {
+func (edb *EdgeDBQueries) GetOAuth2ClientApplicationAndUserAccount(clientID string, accountID edgedb.UUID) (datatypes.OAuthClient, datatypes.Account, error) {
 	var result struct {
 		OAuthClient datatypes.OAuthClient `edgedb:"oauth_client"`
 		Account     datatypes.Account     `edgedb:"account"`
@@ -228,8 +251,8 @@ func GetOAuth2CleintApplicationAndUserAccount(clientID string, accountID edgedb.
 		account := (SELECT Account filter .id = <uuid>$1 LIMIT 1)
 		)`
 
-	return result.OAuthClient, result.Account, database.Client.QuerySingle(
-		database.Context,
+	return result.OAuthClient, result.Account, edb.client.QuerySingle(
+		edb.context,
 		query,
 		&result,
 		clientID,
@@ -237,7 +260,7 @@ func GetOAuth2CleintApplicationAndUserAccount(clientID string, accountID edgedb.
 	)
 }
 
-func GetOAuth2AuthorizationCode(code string) (datatypes.OAuthAuthorizationCode, error) {
+func (edb *EdgeDBQueries) GetOAuth2AuthorizationCode(code string) (datatypes.OAuthAuthorizationCode, error) {
 	var authorizationCode datatypes.OAuthAuthorizationCode
 	query := `SELECT Authcode {
 	code,
@@ -271,15 +294,15 @@ func GetOAuth2AuthorizationCode(code string) (datatypes.OAuthAuthorizationCode, 
 	consented,
 	redirect_uri
 	} filter .code = <str>$0 LIMIT 1`
-	return authorizationCode, database.Client.QuerySingle(database.Context, query, &authorizationCode, code)
+	return authorizationCode, edb.client.QuerySingle(edb.context, query, &authorizationCode, code)
 }
 
-func DeleteOAuth2AuthorizationCode(code string) error {
+func (edb *EdgeDBQueries) DeleteOAuth2AuthorizationCode(code string) error {
 	query := "DELETE Authcode filter .code = <str>$0"
-	return database.Client.Execute(database.Context, query, code)
+	return edb.client.Execute(edb.context, query, code)
 }
 
-func GetRefreshToken(value string) (datatypes.Token, error) {
+func (edb *EdgeDBQueries) GetRefreshToken(value string) (datatypes.Token, error) {
 	var refreshToken datatypes.Token
 	query := `SELECT Token {
 		id,
@@ -291,20 +314,20 @@ func GetRefreshToken(value string) (datatypes.Token, error) {
 		account: {
 			id
 		}} filter .value = <str>$0 LIMIT 1`
-	return refreshToken, database.Client.QuerySingle(database.Context, query, &refreshToken, value)
+	return refreshToken, edb.client.QuerySingle(edb.context, query, &refreshToken, value)
 }
 
-func DeleteRefreshToken(id edgedb.UUID) error {
+func (edb *EdgeDBQueries) DeleteRefreshToken(id edgedb.UUID) error {
 	query := "DELETE Token filter .id = <uuid>$0"
-	return database.Client.Execute(database.Context, query, id)
+	return edb.client.Execute(edb.context, query, id)
 }
 
-func DeleteTokens(ids []edgedb.UUID) error {
+func (edb *EdgeDBQueries) DeleteTokens(ids []edgedb.UUID) error {
 	query := "DELETE Token filter .id IN array_unpack(<array<str>>$0)"
-	return database.Client.Execute(database.Context, query, ids)
+	return edb.client.Execute(edb.context, query, ids)
 }
 
-func DeleteTokensByValue(tokens []string) error {
+func (edb *EdgeDBQueries) DeleteTokensByValue(tokens []string) error {
 	query := "DELETE Token filter .value IN array_unpack(<array<str>>$0)"
-	return database.Client.Execute(database.Context, query, tokens)
+	return edb.client.Execute(edb.context, query, tokens)
 }
