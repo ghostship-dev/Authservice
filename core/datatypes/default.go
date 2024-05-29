@@ -32,12 +32,13 @@ func NewRequestError(statusCode int, message string) error {
 }
 
 type Token struct {
-	Variant   string    `json:"variant" edgedb:"variant"`
-	Value     string    `json:"value" edgedb:"value"`
-	Scope     []string  `json:"scope" edgedb:"scope"`
-	Account   Account   `json:"account" edgedb:"account"`
-	Revoked   bool      `json:"revoked" edgedb:"revoked"`
-	ExpiresAt time.Time `json:"expires_at" edgedb:"expires_at"`
+	ID        edgedb.UUID `json:"id" edgedb:"id"`
+	Variant   string      `json:"variant" edgedb:"variant"`
+	Value     string      `json:"value" edgedb:"value"`
+	Scope     []string    `json:"scope" edgedb:"scope"`
+	Account   Account     `json:"account" edgedb:"account"`
+	Revoked   bool        `json:"revoked" edgedb:"revoked"`
+	ExpiresAt time.Time   `json:"expires_at" edgedb:"expires_at"`
 }
 
 type Password struct {

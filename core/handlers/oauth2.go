@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/edgedb/edgedb-go"
 	"github.com/ghostship-dev/authservice/core/queries"
+	"github.com/ghostship-dev/authservice/core/scopes"
 	"github.com/ghostship-dev/authservice/core/utility"
 	"github.com/golang-jwt/jwt/v5"
 	gonanoid "github.com/matoous/go-nanoid/v2"
@@ -235,4 +237,224 @@ func IntrospectOAuthToken(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	return responses.SendNewOKResponseMessage(w, "token is valid")
+}
+
+func AuthorizeOAuthApplication(w http.ResponseWriter, r *http.Request) error {
+	err := r.ParseForm()
+	if err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	reqData := datatypes.AuthorizeOAuth2ClientRequest{
+		ClientID:     r.Form.Get("client_id"),
+		UserID:       r.Form.Get("user_id"),
+		RedirectURI:  r.Form.Get("redirect_uri"),
+		ResponseType: r.Form.Get("response_type"),
+		Scope:        r.Form.Get("scope"),
+		State:        r.Form.Get("state"),
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
+
+	if validationErrors := reqData.Validate(); len(validationErrors) > 0 {
+		return responses.ValidationErrorResponse(validationErrors)
+	}
+
+	userID, err := edgedb.ParseUUID(reqData.UserID)
+	if err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	oauth2Application, account, err := queries.GetOAuth2CleintApplicationAndUserAccount(reqData.ClientID, userID)
+	if err != nil {
+		return responses.OAuth2ApplicationNotFoundResponse()
+	}
+
+	if len(oauth2Application.ClientID) < 1 {
+		return responses.OAuth2ApplicationNotFoundResponse()
+	}
+
+	if len(account.Id.String()) < 1 {
+		return responses.OAuth2UserNotFoundResponse()
+	}
+
+	if !slices.Contains(oauth2Application.RedirectURIs, reqData.RedirectURI) {
+		return responses.OAuth2RedirectURIDoesNotMatch()
+	}
+
+	scopeSlice := strings.Split(strings.ReplaceAll(reqData.Scope, " ", ""), ",")
+
+	if len(scopeSlice) < 1 {
+		return responses.OAuth2ScopeIsRequired()
+	}
+
+	if !scopes.AllScopesAllowed(scopeSlice) {
+		return responses.OAuth2InvalidScope(scopes.GetForbiddenScopes(scopeSlice))
+	}
+
+	stateToken, err := gonanoid.New(50)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	var authCode = datatypes.OAuthAuthorizationCode{
+		Code:           stateToken,
+		Consented:      false,
+		ExpiresAt:      time.Now().Add(10 * time.Minute),
+		GrantedScope:   make([]string, 0),
+		RequestedScope: scopeSlice,
+		Account:        account,
+		Application:    oauth2Application,
+		RedirectURI:    reqData.RedirectURI,
+	}
+
+	if err = queries.CreateNewOAuth2AuthorizationCode(authCode); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	return responses.ReturnRedirectResponseToConsentPage(w, r, authCode)
+}
+
+func OAuthTokenEndpoint(w http.ResponseWriter, r *http.Request) error {
+	var reqData datatypes.OAuthTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
+
+	if validationErrors := reqData.Validate(); len(validationErrors) > 0 {
+		return responses.ValidationErrorResponse(validationErrors)
+	}
+
+	clientSecret, err := utility.GetClientSecretFromHeader(&r.Header)
+	if err != nil || len(clientSecret) < 1 {
+		return responses.UnauthorizedErrorResponse("missing client secret")
+	}
+	clientID, err := utility.GetClientIDFromHeader(&r.Header)
+	if err != nil || len(clientID) < 1 {
+		return responses.UnauthorizedErrorResponse("missing client id")
+	}
+
+	if reqData.GrantType == "authorization_code" {
+		return handleAuthorizationCodeGrantType(w, reqData, clientID, clientSecret)
+	}
+
+	if reqData.GrantType == "refresh_token" {
+		return handleRefreshTokenGrantType(w, reqData)
+	}
+
+	return responses.BadRequestResponse()
+}
+
+func handleAuthorizationCodeGrantType(w http.ResponseWriter, reqData datatypes.OAuthTokenRequest, clientID, clientSecret string) error {
+	authCode, err := queries.GetOAuth2AuthorizationCode(reqData.Code)
+	if err != nil {
+		return responses.UnauthorizedErrorResponse("invalid authorization code")
+	}
+
+	if authCode.Application.ClientID != clientID {
+		return responses.UnauthorizedErrorResponse("invalid client id")
+	}
+
+	if authCode.Application.ClientSecret != clientSecret {
+		return responses.UnauthorizedErrorResponse("invalid client secret")
+	}
+
+	if authCode.ExpiresAt.Before(time.Now()) {
+		return responses.UnauthorizedErrorResponse("authorization code expired")
+	}
+
+	if !authCode.Consented {
+		return responses.UnauthorizedErrorResponse("authorization code not consented")
+	}
+
+	accessTokenExpiresAt := time.Now().Add(time.Hour * 1)
+	refreshTokenExpiresAt := time.Now().Add(time.Hour * 24 * 7)
+
+	accessToken, err := utility.NewAccessToken(authCode.Account, accessTokenExpiresAt, authCode.GrantedScope)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	refreshToken, err := utility.NewRefreshToken(authCode.Account, refreshTokenExpiresAt, authCode.GrantedScope)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	if err = queries.AddNewTokenPair(authCode.Account.Id, accessToken.Value, refreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	if err = queries.DeleteOAuth2AuthorizationCode(authCode.Code); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	return responses.SendTokenExchangeSuccessResponse(accessToken, refreshToken, w)
+}
+
+func handleRefreshTokenGrantType(w http.ResponseWriter, reqData datatypes.OAuthTokenRequest) error {
+	refreshToken, err := queries.GetRefreshToken(reqData.RefreshToken)
+	if err != nil {
+		fmt.Println(err)
+		return responses.UnauthorizedErrorResponse("invalid refresh token")
+	}
+
+	if refreshToken.Variant != "refresh_token" {
+		fmt.Println(refreshToken.Variant)
+		return responses.UnauthorizedErrorResponse("invalid refresh token")
+	}
+
+	if refreshToken.ExpiresAt.Before(time.Now()) {
+		return responses.UnauthorizedErrorResponse("refresh token expired")
+	}
+
+	accessTokenExpiresAt := time.Now().Add(time.Hour * 1)
+	refreshTokenExpiresAt := time.Now().Add(time.Hour * 24 * 7)
+
+	accessToken, err := utility.NewAccessToken(refreshToken.Account, accessTokenExpiresAt, refreshToken.Scope)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	newRefreshToken, err := utility.NewRefreshToken(refreshToken.Account, refreshTokenExpiresAt, refreshToken.Scope)
+	if err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	if err = queries.AddNewTokenPair(refreshToken.Account.Id, accessToken.Value, newRefreshToken.Value, accessTokenExpiresAt, refreshTokenExpiresAt, accessToken.Scope); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	if err = queries.DeleteRefreshToken(refreshToken.ID); err != nil {
+		return responses.InternalServerErrorResponse()
+	}
+
+	return responses.SendTokenExchangeSuccessResponse(accessToken, newRefreshToken, w)
+}
+
+func RevokeOAuthToken(w http.ResponseWriter, r *http.Request) error {
+	var reqData datatypes.OAuthRevokeTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
+
+	if validationErrors := reqData.Validate(); len(validationErrors) > 0 {
+		return responses.ValidationErrorResponse(validationErrors)
+	}
+
+	if err := queries.DeleteTokensByValue([]string{reqData.Token}); err != nil {
+		fmt.Println(err)
+		return responses.InternalServerErrorResponse()
+	}
+
+	return responses.SendNewOKResponseMessage(w, "token revoked successfully")
 }

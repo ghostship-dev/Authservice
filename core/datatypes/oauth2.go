@@ -25,6 +25,7 @@ const (
 )
 
 type OAuthClient struct {
+	ID                     edgedb.UUID        `json:"id" edgedb:"id"`
 	ClientID               string             `json:"client_id" edgedb:"client_id"`
 	ClientSecret           string             `json:"client_secret" edgedb:"client_secret"`
 	ClientName             string             `json:"client_name" edgedb:"client_name"`
@@ -250,6 +251,96 @@ type IntrospectOAuth2TokenRequest struct {
 }
 
 func (r *IntrospectOAuth2TokenRequest) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
+	if r.Token == "" {
+		errors["token"] = "token is required"
+	}
+	return errors
+}
+
+type AuthorizeOAuth2ClientRequest struct {
+	ClientID            string `json:"client_id"`
+	ClientSecret        string `json:"client_secret"`
+	ResponseType        string `json:"response_type"`
+	RedirectURI         string `json:"redirect_uri"`
+	Scope               string `json:"scope"`
+	State               string `json:"state"`
+	CodeChallenge       string `json:"code_challenge"`
+	CodeChallengeMethod string `json:"code_challenge_method"`
+	UserID              string `json:"user_id"`
+}
+
+func (r *AuthorizeOAuth2ClientRequest) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
+	if len(r.ResponseType) < 1 {
+		errors["response_type"] = "response_type is required"
+	}
+	if r.ResponseType != "code" {
+		errors["response_type"] = "response_type currently only supports 'code'"
+	}
+	if len(r.ClientID) < 1 {
+		errors["client_id"] = "client_id is required"
+	}
+	if len(r.RedirectURI) < 1 {
+		errors["redirect_uri"] = "redirect_uri is required"
+	}
+	if len(r.Scope) < 1 {
+		errors["scope"] = "scope is required"
+	}
+	if len(r.UserID) < 1 {
+		errors["user_id"] = "user_id is required"
+	}
+	return errors
+}
+
+type OAuthAuthorizationCode struct {
+	Id             edgedb.UUID `edgedb:"id"`
+	Code           string      `edgedb:"code"`
+	Consented      bool        `edgedb:"consented"`
+	ExpiresAt      time.Time   `edgedb:"expires_at"`
+	GrantedScope   []string    `edgedb:"granted_scope"`
+	RequestedScope []string    `edgedb:"requested_scope"`
+	Account        Account     `edgedb:"account"`
+	Application    OAuthClient `edgedb:"application"`
+	RedirectURI    string      `edgedb:"redirect_uri"`
+}
+
+type OAuthTokenRequest struct {
+	GrantType    string `json:"grant_type"`
+	Code         string `json:"code"`
+	RedirectURI  string `json:"redirect_uri"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+func (r *OAuthTokenRequest) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
+	if len(r.GrantType) < 1 {
+		errors["grant_type"] = "grant_type is required"
+	}
+	if r.GrantType != "authorization_code" && r.GrantType != "refresh_token" {
+		errors["grant_type"] = "grant_type currently only supports 'authorization_code' and 'refresh_token'"
+	}
+	if r.GrantType == "authorization_code" {
+		if len(r.Code) < 1 {
+			errors["code"] = "code is required"
+		}
+		if len(r.RedirectURI) < 1 {
+			errors["redirect_uri"] = "redirect_uri is required"
+		}
+	}
+	if r.GrantType == "refresh_token" {
+		if len(r.RefreshToken) < 1 {
+			errors["refresh_token"] = "refresh_token is required"
+		}
+	}
+	return errors
+}
+
+type OAuthRevokeTokenRequest struct {
+	Token string `json:"token"`
+}
+
+func (r *OAuthRevokeTokenRequest) Validate() map[string]string {
 	var errors map[string]string = make(map[string]string)
 	if r.Token == "" {
 		errors["token"] = "token is required"

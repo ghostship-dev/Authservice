@@ -5,6 +5,8 @@ var AllowedScopes = map[string]bool{
 	"email":         true,
 	"account_write": true,
 	"account_read":  true,
+	"admin":         false,
+	"*":             false,
 }
 
 func IsScopeAllowed(scope string) bool {
@@ -18,4 +20,14 @@ func AllScopesAllowed(scope []string) bool {
 		}
 	}
 	return true
+}
+
+func GetForbiddenScopes(scope []string) []string {
+	var forbiddenScopes []string
+	for _, scope := range scope {
+		if !IsScopeAllowed(scope) {
+			forbiddenScopes = append(forbiddenScopes, scope)
+		}
+	}
+	return forbiddenScopes
 }
