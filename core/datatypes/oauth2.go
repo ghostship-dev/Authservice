@@ -335,3 +335,15 @@ func (r *OAuthTokenRequest) Validate() map[string]string {
 	}
 	return errors
 }
+
+type OAuthRevokeTokenRequest struct {
+	Token string `json:"token"`
+}
+
+func (r *OAuthRevokeTokenRequest) Validate() map[string]string {
+	var errors map[string]string = make(map[string]string)
+	if r.Token == "" {
+		errors["token"] = "token is required"
+	}
+	return errors
+}

@@ -436,3 +436,25 @@ func handleRefreshTokenGrantType(w http.ResponseWriter, reqData datatypes.OAuthT
 
 	return responses.SendTokenExchangeSuccessResponse(accessToken, newRefreshToken, w)
 }
+
+func RevokeOAuthToken(w http.ResponseWriter, r *http.Request) error {
+	var reqData datatypes.OAuthRevokeTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
+		return responses.BadRequestResponse()
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(r.Body)
+
+	if validationErrors := reqData.Validate(); len(validationErrors) > 0 {
+		return responses.ValidationErrorResponse(validationErrors)
+	}
+
+	if err := queries.DeleteTokensByValue([]string{reqData.Token}); err != nil {
+		fmt.Println(err)
+		return responses.InternalServerErrorResponse()
+	}
+
+	return responses.SendNewOKResponseMessage(w, "token revoked successfully")
+}

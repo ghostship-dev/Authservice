@@ -298,3 +298,13 @@ func DeleteRefreshToken(id edgedb.UUID) error {
 	query := "DELETE Token filter .id = <uuid>$0"
 	return database.Client.Execute(database.Context, query, id)
 }
+
+func DeleteTokens(ids []edgedb.UUID) error {
+	query := "DELETE Token filter .id IN array_unpack(<array<str>>$0)"
+	return database.Client.Execute(database.Context, query, ids)
+}
+
+func DeleteTokensByValue(tokens []string) error {
+	query := "DELETE Token filter .value IN array_unpack(<array<str>>$0)"
+	return database.Client.Execute(database.Context, query, tokens)
+}
