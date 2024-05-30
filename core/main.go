@@ -3,12 +3,16 @@ package core
 import (
 	"fmt"
 
+	"github.com/ghostship-dev/authservice/core/config"
+	"github.com/ghostship-dev/authservice/core/database"
 	"github.com/ghostship-dev/authservice/core/handlers"
 	"github.com/ghostship-dev/authservice/core/router"
 	_ "github.com/joho/godotenv/autoload"
 )
 
-func RunService() {
+func RunService(c *config.Config) {
+	database.Connection = database.ConnectToSelectedDBDriver(c)
+
 	apiV1Router := router.New().Group("/api/v1")
 
 	// Account management
@@ -29,9 +33,9 @@ func RunService() {
 	apiV1Router.Post("/oauth/token", handlers.OAuthTokenEndpoint)
 	apiV1Router.Post("/oauth/token/revoke", handlers.RevokeOAuthToken)
 
-	fmt.Println("Starting service...")
+	fmt.Println(fmt.Sprintf("Running Service on: %s:%d", c.Hostname, c.Port))
 
-	err := apiV1Router.ListenAndServe(":8080")
+	err := apiV1Router.ListenAndServe(fmt.Sprintf("%s:%d", c.Hostname, c.Port))
 	if err != nil {
 		panic(err)
 	}

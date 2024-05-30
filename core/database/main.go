@@ -1,10 +1,10 @@
 package database
 
 import (
-	"os"
 	"time"
 
 	"github.com/edgedb/edgedb-go"
+	"github.com/ghostship-dev/authservice/core/config"
 	"github.com/ghostship-dev/authservice/core/datatypes"
 	"github.com/ghostship-dev/authservice/core/queries"
 )
@@ -39,12 +39,12 @@ type Database struct {
 	Queries DatabaseQueries
 }
 
-func connectToSelectedDBDriver() Database {
-	switch os.Getenv("DATABASE_ENGINE") {
+func ConnectToSelectedDBDriver(c *config.Config) *Database {
+	switch "edgedb" {
 	case "edgedb":
-		return Database{Queries: queries.NewEdgeDBQueryImplementation()}
+		return &Database{Queries: queries.NewEdgeDBQueryImplementation(c)}
 	}
 	panic("No or invalid database driver selected. Please set the DATABASE_ENGINE environment variable to a valid database driver. (available drivers: edgedb)")
 }
 
-var Connection Database = connectToSelectedDBDriver()
+var Connection *Database

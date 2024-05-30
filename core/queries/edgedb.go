@@ -3,19 +3,26 @@ package queries
 import (
 	"context"
 	"errors"
-	"os"
 	"time"
 
 	"github.com/edgedb/edgedb-go"
+	"github.com/ghostship-dev/authservice/core/config"
 	"github.com/ghostship-dev/authservice/core/datatypes"
 	"github.com/ghostship-dev/authservice/core/responses"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func connectToEdgeDB() (*edgedb.Client, error) {
-	os.Setenv("EDGEDB_INSTANCE", "Ghostship")
+func connectToEdgeDB(c *config.Config) (*edgedb.Client, error) {
 	ctx := context.Background()
-	client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+	var (
+		client *edgedb.Client
+		err    error
+	)
+	if c.Database.DSN != "" {
+		client, err = edgedb.CreateClientDSN(ctx, c.Database.DSN, edgedb.Options{})
+	} else {
+		client, err = edgedb.CreateClient(ctx, edgedb.Options{})
+	}
 	return client, err
 }
 
@@ -24,8 +31,8 @@ type EdgeDBQueries struct {
 	context context.Context
 }
 
-func NewEdgeDBQueryImplementation() *EdgeDBQueries {
-	client, err := connectToEdgeDB()
+func NewEdgeDBQueryImplementation(c *config.Config) *EdgeDBQueries {
+	client, err := connectToEdgeDB(c)
 	if err != nil {
 		panic(err)
 	}
